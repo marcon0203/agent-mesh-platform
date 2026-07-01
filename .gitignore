@@ -1,0 +1,11 @@
+# frontend
+code/frontend/node_modules/
+code/frontend/dist/
+
+# backend
+code/backend/**/bin/
+*.exe
+
+# misc
+.DS_Store
+*.log

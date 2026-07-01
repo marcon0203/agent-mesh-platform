@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/* AgentMesh 主题：延续 docs/design/portal-reference.html 的科技蓝毛玻璃视觉 */
+:root {
+  --background: #040914;
+  --surface: #0a1526;
+  --glass: rgba(255, 255, 255, 0.045);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-border-strong: rgba(120, 170, 255, 0.28);
+
+  --foreground: #eaf1ff;
+  --muted-foreground: #7c8bb0;
+
+  --primary: #2f6fed;
+  --primary-foreground: #ffffff;
+  --accent: #3fe0d0;
+  --accent-foreground: #04140f;
+
+  --border: var(--glass-border);
+  --input: var(--glass-border);
+  --ring: #5aa6ff;
+  --radius: 0.9rem;
+
+  --destructive: #e2544a;
+  --destructive-foreground: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-sm: calc(var(--radius) - 8px);
+
+  --font-display: "Space Grotesk", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.glass-panel {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+.glass-panel:hover {
+  border-color: var(--glass-border-strong);
+}

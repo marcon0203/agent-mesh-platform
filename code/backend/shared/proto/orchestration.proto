@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package agentmesh.orchestration;
+option go_package = "github.com/agentmesh/shared/proto/orchestration";
+
+// 内部服务间调用契约，对应技术规格文档第五章。
+service OrchestrationService {
+  rpc Invoke(InvokeRequest) returns (stream InvokeChunk);
+}
+
+message InvokeRequest {
+  string agent_id = 1;
+  string session_id = 2;
+  string message = 3;
+  int32  depth = 4;   // 当前递归深度，Subagent 调用时 +1 传递
+  string trace_id = 5;
+}
+
+message InvokeChunk {
+  string content = 1;
+  bool   is_final = 2;
+  UsageInfo usage = 3;
+}
+
+message UsageInfo {
+  int32 tokens = 1;
+}
