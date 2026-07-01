@@ -96,7 +96,10 @@ func (r *AgentMySQLRepository) FindByID(id string) (*domain.Agent, error) {
 // FindByID 来获得带 ID 的聚合根（与 ModelProviderRepository.Save 的模式保持一致，
 // 这里为了不改动已有的 domain.AgentRepository.Save(agent) error 签名，
 // 通过 owner 传入的 id 为空时退化为"仅插入，调用方随后自行查询"）。
-func (r *AgentMySQLRepository) Save(agent *domain.Agent) error {
+// Save 插入或更新一条记录；新建 Agent（ID 为空）时由 MySQL 自增列生成 ID，
+// 通过返回值把生成的 ID 回填到一个新的聚合根实例上（聚合根本身不暴露 ID setter，
+// 与 ModelProviderRepository.Save 的模式保持一致）。
+func (r *AgentMySQLRepository) Save(agent *domain.Agent) (*domain.Agent, error) {
 	cfg := agentConfigJSON{
 		LoopTemplate:    agent.LoopTemplate(),
 		Capabilities:    agent.Capabilities(),
@@ -105,29 +108,46 @@ func (r *AgentMySQLRepository) Save(agent *domain.Agent) error {
 	}
 	configRaw, err := json.Marshal(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var modelProviderID sql.NullInt64
 	if agent.ModelProviderID() != "" {
 		id, err := strconv.ParseInt(agent.ModelProviderID(), 10, 64)
 		if err != nil {
-			return errors.New("invalid model provider id: " + err.Error())
+			return nil, errors.New("invalid model provider id: " + err.Error())
 		}
 		modelProviderID = sql.NullInt64{Int64: id, Valid: true}
 	}
 
+	// 领域模型目前还没有 Agent 归属者的概念（见 domain/agent.go），owner_id 暂时固定为
+	// 平台默认账号；等账号体系接入后这里需要从调用方上下文传入真实 owner_id。
+	const placeholderOwnerID = 1
+
 	if agent.ID() == "" {
-		_, err := r.db.Exec(
+		res, err := r.db.Exec(
 			`INSERT INTO agent (name, owner_id, config_json, version, status, max_depth, model_provider_id) VALUES (?,?,?,?,?,?,?)`,
-			agent.Name(), 0, configRaw, agent.Version(), agentStatusToDB(agent.Status()), agent.MaxDepth(), modelProviderID,
+			agent.Name(), placeholderOwnerID, configRaw, agent.Version(), agentStatusToDB(agent.Status()), agent.MaxDepth(), modelProviderID,
 		)
-		return err
+		if err != nil {
+			return nil, err
+		}
+		newID, err := res.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		return domain.RehydrateAgent(
+			strconv.FormatInt(newID, 10), agent.Name(), agent.LoopTemplate(), agent.Capabilities(),
+			agent.Hooks(), agent.MaxDepth(), agent.Version(), agent.Status(), agent.ModelProviderID(),
+		), nil
 	}
 
 	_, err = r.db.Exec(
 		`UPDATE agent SET name=?, config_json=?, version=?, status=?, max_depth=?, model_provider_id=? WHERE id=?`,
 		agent.Name(), configRaw, agent.Version(), agentStatusToDB(agent.Status()), agent.MaxDepth(), modelProviderID, agent.ID(),
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return agent, nil
 }

@@ -60,11 +60,12 @@ func main() {
 	}
 
 	invokeUseCase := application.NewInvokeUseCase(agentRepo, runtime, usageReporter)
+	createAgentUseCase := application.NewCreateAgentUseCase(agentRepo)
 	configureAgentUseCase := application.NewConfigureAgentUseCase(agentRepo)
 	modelProviderUseCase := application.NewModelProviderUseCase(modelProviderRepo)
 
 	grpcHandler := interfaces.NewOrchestrationGRPCServer(invokeUseCase)
-	adminHandler := interfaces.NewAdminHTTPHandler(configureAgentUseCase, modelProviderUseCase)
+	adminHandler := interfaces.NewAdminHTTPHandler(createAgentUseCase, configureAgentUseCase, modelProviderUseCase)
 
 	go serveAdminHTTP(adminHandler)
 
@@ -84,6 +85,8 @@ func main() {
 
 func serveAdminHTTP(handler *interfaces.AdminHTTPHandler) {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /agents", handler.CreateAgentHandler)
+	mux.HandleFunc("GET /agents/{id}", handler.GetAgent)
 	mux.HandleFunc("POST /agents/{id}/config", handler.ConfigureAgentHandler)
 	mux.HandleFunc("POST /model-providers", handler.CreateModelProvider)
 	mux.HandleFunc("GET /model-providers", handler.ListModelProviders)

@@ -12,12 +12,68 @@ import (
 // 发布，以及模型供应商的增删查。这是内部/控制台使用的接口，不同于面向最终调用方的
 // gRPC Invoke（数据面），也不同于 gateway-service 对外暴露的 sendMsg/streamMsg。
 type AdminHTTPHandler struct {
+	CreateAgent    *application.CreateAgentUseCase
 	ConfigureAgent *application.ConfigureAgentUseCase
 	ModelProviders *application.ModelProviderUseCase
 }
 
-func NewAdminHTTPHandler(configureAgent *application.ConfigureAgentUseCase, modelProviders *application.ModelProviderUseCase) *AdminHTTPHandler {
-	return &AdminHTTPHandler{ConfigureAgent: configureAgent, ModelProviders: modelProviders}
+func NewAdminHTTPHandler(createAgent *application.CreateAgentUseCase, configureAgent *application.ConfigureAgentUseCase, modelProviders *application.ModelProviderUseCase) *AdminHTTPHandler {
+	return &AdminHTTPHandler{CreateAgent: createAgent, ConfigureAgent: configureAgent, ModelProviders: modelProviders}
+}
+
+type createAgentRequest struct {
+	Name         string              `json:"name"`
+	LoopTemplate domain.LoopTemplate `json:"loop_template"`
+}
+
+type agentResponse struct {
+	ID           string              `json:"id"`
+	Name         string              `json:"name"`
+	LoopTemplate domain.LoopTemplate `json:"loop_template"`
+	Status       string              `json:"status"`
+}
+
+// CreateAgentHandler 对应 POST /agents，创建一个草稿态 Agent 供后续装配/发布使用。
+func (h *AdminHTTPHandler) CreateAgentHandler(w http.ResponseWriter, r *http.Request) {
+	var req createAgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	agent, err := h.CreateAgent.Execute(application.CreateAgentCommand{Name: req.Name, LoopTemplate: req.LoopTemplate})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(agentResponse{ID: agent.ID(), Name: agent.Name(), LoopTemplate: agent.LoopTemplate(), Status: string(agent.Status())})
+}
+
+type agentDetailResponse struct {
+	ID              string                     `json:"id"`
+	Name            string                     `json:"name"`
+	LoopTemplate    domain.LoopTemplate        `json:"loop_template"`
+	Capabilities    []domain.MountedCapability `json:"capabilities"`
+	Hooks           domain.HookConfig          `json:"hooks"`
+	MaxDepth        int32                      `json:"max_depth"`
+	Status          string                     `json:"status"`
+	ModelProviderID string                     `json:"model_provider_id"`
+}
+
+// GetAgent 对应 GET /agents/{id}，供 AgentBuilderPage 回显当前配置状态。
+func (h *AdminHTTPHandler) GetAgent(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	agent, err := h.ConfigureAgent.Agents.FindByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(agentDetailResponse{
+		ID: agent.ID(), Name: agent.Name(), LoopTemplate: agent.LoopTemplate(),
+		Capabilities: agent.Capabilities(), Hooks: agent.Hooks(), MaxDepth: agent.MaxDepth(),
+		Status: string(agent.Status()), ModelProviderID: agent.ModelProviderID(),
+	})
 }
 
 type configureAgentRequest struct {

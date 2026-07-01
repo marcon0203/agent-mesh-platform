@@ -48,5 +48,6 @@ func (uc *ConfigureAgentUseCase) Execute(cmd ConfigureAgentCommand) error {
 		}
 	}
 
-	return uc.Agents.Save(agent)
+	_, err = uc.Agents.Save(agent)
+	return err
 }
