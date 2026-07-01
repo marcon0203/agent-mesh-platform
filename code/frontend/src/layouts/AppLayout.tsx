@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 const NAV_ITEMS = [
   { to: "/marketplace", label: "能力市场" },
   { to: "/builder", label: "构建 Agent" },
+  { to: "/model-providers", label: "模型供应商" },
   { to: "/workbench", label: "Workbench" },
   { to: "/dashboard", label: "控制台" },
 ]

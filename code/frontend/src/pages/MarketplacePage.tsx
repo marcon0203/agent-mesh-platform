@@ -1,11 +1,29 @@
+import { useQuery } from "@tanstack/react-query"
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { MOCK_CAPABILITIES } from "@/data/mock-capabilities"
+import { api } from "@/api/client"
 
 const TYPE_LABEL: Record<string, string> = { tool: "TOOL", skill: "SKILL", agent: "AGENT" }
+const STATUS_LABEL: Record<string, string> = {
+  pending_review: "待审核",
+  published: "已上架",
+  offline: "已下线",
+}
 
 export default function MarketplacePage() {
+  const toolsQuery = useQuery({ queryKey: ["capabilities", "tool"], queryFn: () => api.listCapabilities("tool") })
+  const skillsQuery = useQuery({ queryKey: ["capabilities", "skill"], queryFn: () => api.listCapabilities("skill") })
+  const agentsQuery = useQuery({ queryKey: ["capabilities", "agent"], queryFn: () => api.listCapabilities("agent") })
+
+  const isLoading = toolsQuery.isLoading || skillsQuery.isLoading || agentsQuery.isLoading
+  const error = toolsQuery.error || skillsQuery.error || agentsQuery.error
+  const capabilities = [
+    ...(toolsQuery.data ?? []),
+    ...(skillsQuery.data ?? []),
+    ...(agentsQuery.data ?? []),
+  ]
+
   return (
     <div>
       <div className="mb-8">
@@ -16,19 +34,43 @@ export default function MarketplacePage() {
         </p>
       </div>
 
-      <Input placeholder="按名称或用途搜索能力…" className="mb-8 max-w-md" />
+      <Input placeholder="按名称或用途搜索能力…" className="mb-8 max-w-md" disabled />
+
+      {isLoading && <p className="text-sm text-muted-foreground">加载中…</p>}
+
+      {error && (
+        <Card className="border-destructive/40">
+          <CardTitle className="text-destructive">能力列表加载失败</CardTitle>
+          <CardDescription>{(error as Error).message}</CardDescription>
+        </Card>
+      )}
+
+      {!isLoading && !error && capabilities.length === 0 && (
+        <Card>
+          <CardTitle>市场里还没有已上架的能力</CardTitle>
+          <CardDescription>
+            marketplace-service 启动时会自动预置两个内置 Tool（网页检索、日历解析），
+            如果这里是空的，检查一下 marketplace-service 是否已经启动并连上了 MySQL。
+          </CardDescription>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-        {MOCK_CAPABILITIES.map((cap) => (
+        {capabilities.map((cap) => (
           <Card key={cap.id}>
             <CardHeader>
-              <Badge variant={cap.type}>{TYPE_LABEL[cap.type]}</Badge>
+              <div className="flex items-center justify-between">
+                <Badge variant={cap.type}>{TYPE_LABEL[cap.type]}</Badge>
+                {cap.is_builtin && <span className="text-xs font-medium text-accent">平台内置</span>}
+              </div>
               <CardTitle>{cap.name}</CardTitle>
-              <CardDescription>{cap.description}</CardDescription>
+              <CardDescription>
+                ID：<span className="font-mono">{cap.id}</span>（装配 Agent 时用它来挂载这个能力）
+              </CardDescription>
             </CardHeader>
             <CardFooter>
-              <span>{cap.version}</span>
-              <span className="text-accent">{cap.callsPerDay.toLocaleString()} 次/日</span>
+              <span>{cap.version || "未发布版本"}</span>
+              <span className="text-accent">{STATUS_LABEL[cap.status] ?? cap.status}</span>
             </CardFooter>
           </Card>
         ))}
