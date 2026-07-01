@@ -87,10 +87,27 @@ func (c *Capability) TakeOffline() error {
 	return nil
 }
 
-func (c *Capability) ID() string                 { return c.id }
-func (c *Capability) Name() string                { return c.name }
-func (c *Capability) Type() CapabilityType         { return c.capType }
-func (c *Capability) Status() CapabilityStatus     { return c.status }
-func (c *Capability) Version() string              { return c.version }
-func (c *Capability) MCPEndpoint() string          { return c.mcpEndpoint }
-func (c *Capability) IsBuiltin() bool              { return c.isBuiltin }
+func (c *Capability) ID() string             { return c.id }
+func (c *Capability) Name() string           { return c.name }
+func (c *Capability) Type() CapabilityType   { return c.capType }
+func (c *Capability) Status() CapabilityStatus { return c.status }
+func (c *Capability) Version() string        { return c.version }
+func (c *Capability) MCPEndpoint() string    { return c.mcpEndpoint }
+func (c *Capability) IsBuiltin() bool        { return c.isBuiltin }
+func (c *Capability) PublisherID() string    { return c.publisherID }
+func (c *Capability) SchemaJSON() string     { return c.schemaJSON }
+
+// RehydrateCapability 供仓储层从持久化存储重建聚合根，跳过构造校验。
+func RehydrateCapability(id, name string, capType CapabilityType, publisherID, schemaJSON, mcpEndpoint string, isBuiltin bool, status CapabilityStatus, version string) *Capability {
+	return &Capability{
+		id:          id,
+		name:        name,
+		capType:     capType,
+		publisherID: publisherID,
+		schemaJSON:  schemaJSON,
+		mcpEndpoint: mcpEndpoint,
+		isBuiltin:   isBuiltin,
+		status:      status,
+		version:     version,
+	}
+}

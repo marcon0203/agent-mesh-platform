@@ -12,9 +12,9 @@ func NewPublishCapabilityUseCase(repo domain.CapabilityRepository, registry doma
 }
 
 type SubmitCommand struct {
-	CapabilityID string
-	SchemaJSON   string
-	MCPEndpoint  string // 内置能力可为空
+	CapabilityID string `json:"capability_id"`
+	SchemaJSON   string `json:"schema_json"`
+	MCPEndpoint  string `json:"mcp_endpoint"` // 内置能力可为空
 }
 
 // Submit 对应「发布与审核」流程的第一步：定义 schema + 注册 MCP（如需要）+ 提交审核。

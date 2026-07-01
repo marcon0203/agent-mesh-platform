@@ -12,15 +12,32 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/agentmesh/marketplace-service/internal/application"
 	"github.com/agentmesh/marketplace-service/internal/infrastructure"
 	"github.com/agentmesh/marketplace-service/internal/interfaces"
 )
 
+func mysqlDSN() string {
+	if dsn := os.Getenv("MARKETPLACE_MYSQL_DSN"); dsn != "" {
+		return dsn
+	}
+	return "root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true"
+}
+
 func main() {
-	repo := infrastructure.NewInMemoryCapabilityRepository() // TODO: 替换为 MySQL 实现
+	db, err := infrastructure.NewMySQLConnection(mysqlDSN())
+	if err != nil {
+		log.Fatalf("failed to connect to mysql: %v", err)
+	}
+
+	repo := infrastructure.NewCapabilityMySQLRepository(db)
 	registry := infrastructure.NewMCPRegistryAdapter()
+
+	if err := infrastructure.SeedBuiltinCapabilities(repo); err != nil {
+		log.Fatalf("failed to seed builtin capabilities: %v", err)
+	}
 
 	publishUseCase := application.NewPublishCapabilityUseCase(repo, registry)
 	discoverUseCase := application.NewDiscoverCapabilityUseCase(repo, registry)
@@ -28,7 +45,9 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /capabilities", handler.ListCapabilities)
+	mux.HandleFunc("GET /capabilities/{id}", handler.GetCapability)
 	mux.HandleFunc("POST /capabilities/{id}/submit", handler.SubmitCapability)
+	mux.HandleFunc("POST /capabilities/{id}/approve", handler.ApproveCapability)
 
 	log.Println("marketplace-service listening on :8081")
 	log.Fatal(http.ListenAndServe(":8081", mux))

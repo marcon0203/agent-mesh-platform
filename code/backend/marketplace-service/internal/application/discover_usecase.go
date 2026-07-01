@@ -16,6 +16,11 @@ func (uc *DiscoverCapabilityUseCase) ListByType(capType domain.CapabilityType) (
 	return uc.Repo.ListPublished(capType)
 }
 
+// FindByID 供市场详情页使用。
+func (uc *DiscoverCapabilityUseCase) FindByID(id string) (*domain.Capability, error) {
+	return uc.Repo.FindByID(id)
+}
+
 // ResolveEndpoint 供 orchestration-service 在构建 Agent 运行时，
 // 根据挂载的 capabilityID 实时拉取 MCP 连接信息。
 func (uc *DiscoverCapabilityUseCase) ResolveEndpoint(capabilityID string) (string, error) {

@@ -2,14 +2,16 @@
 -- 完整设计说明见 docs/Agent开放平台_技术规格文档.md 第四章
 
 CREATE TABLE capability (
-    id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    type          TINYINT         NOT NULL COMMENT '1=tool 2=skill 3=agent',
-    name          VARCHAR(100)    NOT NULL,
-    publisher_id  BIGINT UNSIGNED NOT NULL,
-    schema_json   JSON            NOT NULL COMMENT '输入输出 JSON Schema',
-    mcp_endpoint  VARCHAR(255)             COMMENT 'MCP Server 地址，动态发现用',
-    status        TINYINT         NOT NULL DEFAULT 1 COMMENT '1待审核 2已上架 3已下线',
-    created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    type            TINYINT         NOT NULL COMMENT '1=tool 2=skill 3=agent',
+    name            VARCHAR(100)    NOT NULL,
+    publisher_id    BIGINT UNSIGNED NOT NULL,
+    schema_json     JSON                     COMMENT '输入输出 JSON Schema，提交审核前可为空',
+    mcp_endpoint    VARCHAR(255)             COMMENT 'MCP Server 地址，动态发现用',
+    is_builtin      TINYINT         NOT NULL DEFAULT 0 COMMENT '1=平台内置能力，免 MCP 走进程内调用',
+    current_version VARCHAR(20)              COMMENT '当前已上架版本号，完整历史见 capability_version 表',
+    status          TINYINT         NOT NULL DEFAULT 1 COMMENT '1待审核 2已上架 3已下线',
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_publisher (publisher_id),
     KEY idx_type_status (type, status)
