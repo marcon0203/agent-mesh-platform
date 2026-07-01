@@ -46,7 +46,7 @@ gateway-service 本质是基础设施编排（鉴权、限流、路由转发）�
 ## 本地开发
 
 ```bash
-docker compose -f ../../infra/docker-compose.yml up -d   # MySQL / Redis / 消息队列
+docker compose -f ../../infra/docker-compose.yml up -d   # PostgreSQL / Redis
 
 cd gateway-service && go run ./cmd
 cd orchestration-service && go run ./cmd
@@ -54,20 +54,21 @@ cd marketplace-service && go run ./cmd
 cd billing-service && go run ./cmd
 ```
 
-`marketplace-service` 和其内部 `domain`/`application`/`infrastructure`/`interfaces` 四层
-已在沙箱环境验证 `go build` 全部通过（无外部重依赖）。`orchestration-service` 的
-`domain`/`application`/`infrastructure`/`interfaces` 四层同样编译通过；其 `cmd/main.go`
-依赖 `google.golang.org/grpc`，需要在有完整网络访问的环境里 `go mod tidy` 才能构建。
+推荐直接用仓库根目录的 `make dev`（见根 `README.md`），会按依赖顺序把基础设施和四个服务都起好。
 
 ## 当前状态
 
-骨架代码，`TODO` 标记的位置对应技术规格文档里已确定方案、但还未实现的部分：
+M1 里程碑的任务表格已经全部实现（不再是骨架/TODO 状态）：
 
-- [ ] gateway-service：API Key 鉴权中间件、Redis 令牌桶限流
-- [ ] orchestration-service：`infrastructure/eino_runtime.go` 里接入真实 Eino ADK
-      `ChatModelAgent` 构造与 Callback 绑定；仓储从内存实现换成 MySQL
-- [ ] marketplace-service：`infrastructure/mcp_registry_adapter.go` 接入真实 MCP 健康检查；
-      仓储从内存实现换成 MySQL
-- [ ] billing-service：消息队列消费者、分成结算逻辑
+- [x] gateway-service：API Key 鉴权中间件、Redis 令牌桶限流、转发到 orchestration-service、
+      按 Agent 动态生成 OpenAPI 文档
+- [x] orchestration-service：`infrastructure/eino_runtime.go` 接入真实 Eino ADK
+      `ChatModelAgent` + Callback 绑定；ModelProvider 聚合根（用户自建模型供应商）；
+      仓储从内存实现换成 PostgreSQL；用量上报用 asynq 把事件放进 Redis 任务队列
+- [x] marketplace-service：内置能力（免走 MCP）静态注册；仓储从内存实现换成 PostgreSQL
+- [x] billing-service：asynq 消费用量事件、落库 `usage_record`、对外用量查询接口
 
-数据库表结构见技术规格文档第四章 / `infra/schema.sql`，可直接执行建表。
+MCP 第三方能力接入、Subagent-as-Tool 递归包装、分成结算算法属于 M2 范围，还没有实现。
+
+数据库表结构见技术规格文档第四章 / `infra/schema.sql`（PostgreSQL 方言），可直接执行建表；
+`make schema` 会自动跑这一步。

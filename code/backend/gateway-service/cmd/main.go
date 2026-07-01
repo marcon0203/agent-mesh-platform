@@ -18,11 +18,11 @@ import (
 	"github.com/agentmesh/gateway-service/internal/handler"
 )
 
-func mysqlDSN() string {
-	if dsn := os.Getenv("GATEWAY_MYSQL_DSN"); dsn != "" {
+func postgresDSN() string {
+	if dsn := os.Getenv("GATEWAY_POSTGRES_DSN"); dsn != "" {
 		return dsn
 	}
-	return "root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true"
+	return "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
 }
 
 func redisAddr() string {
@@ -40,9 +40,9 @@ func orchestrationAddr() string {
 }
 
 func main() {
-	db, err := handler.NewMySQLConnection(mysqlDSN())
+	db, err := handler.NewPostgresConnection(postgresDSN())
 	if err != nil {
-		log.Fatalf("failed to connect to mysql: %v", err)
+		log.Fatalf("failed to connect to postgres: %v", err)
 	}
 	rdb := redis.NewClient(&redis.Options{Addr: redisAddr()})
 

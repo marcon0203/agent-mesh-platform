@@ -9,8 +9,8 @@ import (
 )
 
 // ModelProviderMySQLRepository 实现 domain.ModelProviderRepository，对接
-// infra/schema.sql 里的 model_provider 表。API Key 在写入前用 apiKeyCipher
-// 加密，读出后解密，明文只在内存态的聚合根里出现。
+// infra/schema.sql 里的 model_provider 表（PostgreSQL）。API Key 在写入前用
+// apiKeyCipher 加密，读出后解密，明文只在内存态的聚合根里出现。
 type ModelProviderMySQLRepository struct {
 	db     *sql.DB
 	cipher *apiKeyCipher
@@ -62,7 +62,7 @@ func providerStatusFromDB(v int) domain.ModelProviderStatus {
 
 func (r *ModelProviderMySQLRepository) scanProvider(row rowScanner) (*domain.ModelProvider, error) {
 	var (
-		dbID, ownerID              uint64
+		dbID, ownerID              int64
 		name, modelName            string
 		baseURL                    sql.NullString
 		providerTypeVal, statusVal int
@@ -83,8 +83,8 @@ func (r *ModelProviderMySQLRepository) scanProvider(row rowScanner) (*domain.Mod
 		return nil, err
 	}
 	return domain.RehydrateModelProvider(
-		strconv.FormatUint(dbID, 10),
-		strconv.FormatUint(ownerID, 10),
+		strconv.FormatInt(dbID, 10),
+		strconv.FormatInt(ownerID, 10),
 		name, providerType, baseURL.String, apiKey, modelName, providerStatusFromDB(statusVal),
 	), nil
 }
@@ -92,12 +92,12 @@ func (r *ModelProviderMySQLRepository) scanProvider(row rowScanner) (*domain.Mod
 const modelProviderSelectCols = `id, owner_id, name, provider_type, base_url, model_name, api_key_cipher, status`
 
 func (r *ModelProviderMySQLRepository) FindByID(id string) (*domain.ModelProvider, error) {
-	row := r.db.QueryRow(`SELECT `+modelProviderSelectCols+` FROM model_provider WHERE id = ?`, id)
+	row := r.db.QueryRow(`SELECT `+modelProviderSelectCols+` FROM model_provider WHERE id = $1`, id)
 	return r.scanProvider(row)
 }
 
 func (r *ModelProviderMySQLRepository) ListByOwner(ownerID string) ([]*domain.ModelProvider, error) {
-	rows, err := r.db.Query(`SELECT `+modelProviderSelectCols+` FROM model_provider WHERE owner_id = ? ORDER BY id DESC`, ownerID)
+	rows, err := r.db.Query(`SELECT `+modelProviderSelectCols+` FROM model_provider WHERE owner_id = $1 ORDER BY id DESC`, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (r *ModelProviderMySQLRepository) ListByOwner(ownerID string) ([]*domain.Mo
 	return result, rows.Err()
 }
 
-// Save 插入或更新一条记录。新建时（ID 为空）由 MySQL 自增列生成 ID，
+// Save 插入或更新一条记录。新建时（ID 为空）由 Postgres 自增列生成 ID，
 // 通过返回值把生成的 ID 回填到一个新的聚合根实例上（聚合根本身不暴露 ID setter）。
 func (r *ModelProviderMySQLRepository) Save(provider *domain.ModelProvider) (*domain.ModelProvider, error) {
 	typeVal, err := providerTypeToDB(provider.Type())
@@ -129,18 +129,16 @@ func (r *ModelProviderMySQLRepository) Save(provider *domain.ModelProvider) (*do
 	baseURL := sql.NullString{String: provider.BaseURL(), Valid: provider.BaseURL() != ""}
 
 	if provider.ID() == "" {
-		ownerID, err := strconv.ParseUint(provider.OwnerID(), 10, 64)
+		ownerID, err := strconv.ParseInt(provider.OwnerID(), 10, 64)
 		if err != nil {
 			return nil, errors.New("invalid owner id: " + err.Error())
 		}
-		res, err := r.db.Exec(
-			`INSERT INTO model_provider (owner_id, name, provider_type, base_url, model_name, api_key_cipher, status) VALUES (?,?,?,?,?,?,?)`,
+		var newID int64
+		err = r.db.QueryRow(
+			`INSERT INTO model_provider (owner_id, name, provider_type, base_url, model_name, api_key_cipher, status)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
 			ownerID, provider.Name(), typeVal, baseURL, provider.ModelName(), cipherBytes, statusVal,
-		)
-		if err != nil {
-			return nil, err
-		}
-		newID, err := res.LastInsertId()
+		).Scan(&newID)
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +149,7 @@ func (r *ModelProviderMySQLRepository) Save(provider *domain.ModelProvider) (*do
 	}
 
 	_, err = r.db.Exec(
-		`UPDATE model_provider SET name=?, provider_type=?, base_url=?, model_name=?, api_key_cipher=?, status=? WHERE id=?`,
+		`UPDATE model_provider SET name=$1, provider_type=$2, base_url=$3, model_name=$4, api_key_cipher=$5, status=$6 WHERE id=$7`,
 		provider.Name(), typeVal, baseURL, provider.ModelName(), cipherBytes, statusVal, provider.ID(),
 	)
 	if err != nil {

@@ -56,7 +56,7 @@ func (s *AuthService) Middleware() app.HandlerFunc {
 			scopesJSON      string
 			status          int
 		)
-		row := s.DB.QueryRow(`SELECT id, developer_id, scopes, status FROM api_key WHERE key_hash = ?`, keyHash)
+		row := s.DB.QueryRow(`SELECT id, developer_id, scopes, status FROM api_key WHERE key_hash = $1`, keyHash)
 		if err := row.Scan(&id, &developerID, &scopesJSON, &status); err != nil {
 			abortWithCode(c, 401, 40101, "api key invalid or revoked")
 			return

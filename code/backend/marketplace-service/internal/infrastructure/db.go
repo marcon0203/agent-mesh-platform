@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// NewMySQLConnection 打开一个到 infra/docker-compose.yml 里 MySQL 服务的连接池。
-// dsn 形如 "root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true"。
-func NewMySQLConnection(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("mysql", dsn)
+// NewPostgresConnection 打开一个到 infra/docker-compose.yml 里 PostgreSQL 服务的连接池。
+// dsn 形如 "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"。
+func NewPostgresConnection(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}

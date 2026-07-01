@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// NewMySQLConnection 打开一个到 infra/docker-compose.yml 里 MySQL 服务的连接池，
+// NewPostgresConnection 打开一个到 infra/docker-compose.yml 里 PostgreSQL 服务的连接池，
 // 供 AuthService 查询 api_key 表使用。
-func NewMySQLConnection(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("mysql", dsn)
+func NewPostgresConnection(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}

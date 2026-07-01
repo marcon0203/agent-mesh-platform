@@ -1,11 +1,11 @@
 // billing-service 异步消费用量事件，按 Agent / 能力维度聚合计费与分成。
-// 用量事件由 orchestration-service 在每次运行结束后写入消息队列，
+// 用量事件由 orchestration-service 在每次运行结束后写入 asynq 任务队列（Redis），
 // 避免同步计费拖慢主链路。详见技术规格文档 6.6 节。
 //
 // 简单三层结构（见 code/backend/README.md）：
 //
 //	internal/handler     对外用量查询 HTTP 接口
-//	internal/service     消息队列消费者
+//	internal/service     asynq 任务消费者
 //	internal/repository  usage_record / agent_run 数据访问
 //
 // 分成结算（按 capability_id 聚合生成结算单）属于 M2 范围，这里先跑通
@@ -22,31 +22,28 @@ import (
 	"github.com/agentmesh/billing-service/internal/service"
 )
 
-func mysqlDSN() string {
-	if dsn := os.Getenv("BILLING_MYSQL_DSN"); dsn != "" {
+func postgresDSN() string {
+	if dsn := os.Getenv("BILLING_POSTGRES_DSN"); dsn != "" {
 		return dsn
 	}
-	return "root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true"
+	return "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
 }
 
-func amqpURL() string {
-	if url := os.Getenv("BILLING_AMQP_URL"); url != "" {
-		return url
+func redisAddr() string {
+	if addr := os.Getenv("BILLING_REDIS_ADDR"); addr != "" {
+		return addr
 	}
-	return "amqp://guest:guest@127.0.0.1:5672/"
+	return "127.0.0.1:6379"
 }
 
 func main() {
-	db, err := repository.NewMySQLConnection(mysqlDSN())
+	db, err := repository.NewPostgresConnection(postgresDSN())
 	if err != nil {
-		log.Fatalf("failed to connect to mysql: %v", err)
+		log.Fatalf("failed to connect to postgres: %v", err)
 	}
 	usageRepo := repository.NewUsageRepository(db)
 
-	consumer, err := service.NewUsageConsumer(amqpURL(), usageRepo)
-	if err != nil {
-		log.Fatalf("failed to connect to rabbitmq: %v", err)
-	}
+	consumer := service.NewUsageConsumer(redisAddr(), usageRepo)
 	go func() {
 		log.Println("billing-service: consuming usage events")
 		if err := consumer.Run(); err != nil {

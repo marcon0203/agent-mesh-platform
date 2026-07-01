@@ -9,7 +9,7 @@ import (
 )
 
 // CapabilityMySQLRepository 实现 domain.CapabilityRepository，对接
-// infra/schema.sql 的 capability 表。
+// infra/schema.sql 的 capability 表（PostgreSQL）。
 type CapabilityMySQLRepository struct {
 	db *sql.DB
 }
@@ -70,7 +70,7 @@ const capabilitySelectCols = `id, type, name, publisher_id, schema_json, mcp_end
 
 func (r *CapabilityMySQLRepository) scanCapability(row rowScanner) (*domain.Capability, error) {
 	var (
-		dbID, publisherID uint64
+		dbID, publisherID  int64
 		typeVal, statusVal int
 		name               string
 		schemaJSON         sql.NullString
@@ -89,13 +89,13 @@ func (r *CapabilityMySQLRepository) scanCapability(row rowScanner) (*domain.Capa
 		return nil, err
 	}
 	return domain.RehydrateCapability(
-		strconv.FormatUint(dbID, 10), name, capType, strconv.FormatUint(publisherID, 10),
+		strconv.FormatInt(dbID, 10), name, capType, strconv.FormatInt(publisherID, 10),
 		schemaJSON.String, mcpEndpoint.String, isBuiltin, capStatusFromDB(statusVal), currentVersion.String,
 	), nil
 }
 
 func (r *CapabilityMySQLRepository) FindByID(id string) (*domain.Capability, error) {
-	row := r.db.QueryRow(`SELECT `+capabilitySelectCols+` FROM capability WHERE id = ?`, id)
+	row := r.db.QueryRow(`SELECT `+capabilitySelectCols+` FROM capability WHERE id = $1`, id)
 	return r.scanCapability(row)
 }
 
@@ -105,7 +105,7 @@ func (r *CapabilityMySQLRepository) ListPublished(capType domain.CapabilityType)
 		return nil, err
 	}
 	rows, err := r.db.Query(
-		`SELECT `+capabilitySelectCols+` FROM capability WHERE status = ? AND type = ? ORDER BY id DESC`,
+		`SELECT `+capabilitySelectCols+` FROM capability WHERE status = $1 AND type = $2 ORDER BY id DESC`,
 		capStatusToDB(domain.StatusPublished), typeVal,
 	)
 	if err != nil {
@@ -126,35 +126,30 @@ func (r *CapabilityMySQLRepository) ListPublished(capType domain.CapabilityType)
 
 // Save 是插入或更新的 upsert：内置能力在启动时以固定数值 ID 写入
 // （见 builtin_capabilities.go），后续 SubmitForReview/Approve 等状态流转
-// 复用同一行，用 ON DUPLICATE KEY UPDATE 覆盖。
+// 复用同一行，用 ON CONFLICT ... DO UPDATE 覆盖。
 func (r *CapabilityMySQLRepository) Save(cap *domain.Capability) error {
 	typeVal, err := capTypeToDB(cap.Type())
 	if err != nil {
 		return err
 	}
-	publisherID, err := strconv.ParseUint(cap.PublisherID(), 10, 64)
+	publisherID, err := strconv.ParseInt(cap.PublisherID(), 10, 64)
 	if err != nil {
 		return errors.New("invalid publisher id: " + err.Error())
 	}
-	id, err := strconv.ParseUint(cap.ID(), 10, 64)
+	id, err := strconv.ParseInt(cap.ID(), 10, 64)
 	if err != nil {
 		return errors.New("invalid capability id: " + err.Error())
 	}
 
-	isBuiltin := 0
-	if cap.IsBuiltin() {
-		isBuiltin = 1
-	}
-
 	_, err = r.db.Exec(
 		`INSERT INTO capability (id, type, name, publisher_id, schema_json, mcp_endpoint, is_builtin, current_version, status)
-		 VALUES (?,?,?,?,?,?,?,?,?)
-		 ON DUPLICATE KEY UPDATE
-		   type=VALUES(type), name=VALUES(name), publisher_id=VALUES(publisher_id),
-		   schema_json=VALUES(schema_json), mcp_endpoint=VALUES(mcp_endpoint),
-		   is_builtin=VALUES(is_builtin), current_version=VALUES(current_version), status=VALUES(status)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		 ON CONFLICT (id) DO UPDATE SET
+		   type = EXCLUDED.type, name = EXCLUDED.name, publisher_id = EXCLUDED.publisher_id,
+		   schema_json = EXCLUDED.schema_json, mcp_endpoint = EXCLUDED.mcp_endpoint,
+		   is_builtin = EXCLUDED.is_builtin, current_version = EXCLUDED.current_version, status = EXCLUDED.status`,
 		id, typeVal, cap.Name(), publisherID, nullableString(cap.SchemaJSON()), nullableString(cap.MCPEndpoint()),
-		isBuiltin, nullableString(cap.Version()), capStatusToDB(cap.Status()),
+		cap.IsBuiltin(), nullableString(cap.Version()), capStatusToDB(cap.Status()),
 	)
 	return err
 }

@@ -27,24 +27,24 @@ import (
 	"github.com/agentmesh/orchestration-service/internal/interfaces"
 )
 
-func mysqlDSN() string {
-	if dsn := os.Getenv("ORCHESTRATION_MYSQL_DSN"); dsn != "" {
+func postgresDSN() string {
+	if dsn := os.Getenv("ORCHESTRATION_POSTGRES_DSN"); dsn != "" {
 		return dsn
 	}
-	return "root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true"
+	return "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
 }
 
-func amqpURL() string {
-	if url := os.Getenv("ORCHESTRATION_AMQP_URL"); url != "" {
-		return url
+func redisAddr() string {
+	if addr := os.Getenv("ORCHESTRATION_REDIS_ADDR"); addr != "" {
+		return addr
 	}
-	return "amqp://guest:guest@127.0.0.1:5672/"
+	return "127.0.0.1:6379"
 }
 
 func main() {
-	db, err := infrastructure.NewMySQLConnection(mysqlDSN())
+	db, err := infrastructure.NewPostgresConnection(postgresDSN())
 	if err != nil {
-		log.Fatalf("failed to connect to mysql: %v", err)
+		log.Fatalf("failed to connect to postgres: %v", err)
 	}
 
 	// 依赖注入：infrastructure 实现 domain 定义的端口，application 只依赖端口
@@ -54,10 +54,7 @@ func main() {
 		log.Fatalf("failed to init model provider repository (check MODEL_PROVIDER_ENC_KEY): %v", err)
 	}
 	runtime := infrastructure.NewEinoRuntime(modelProviderRepo)
-	usageReporter, err := infrastructure.NewAsyncUsageReporter(amqpURL())
-	if err != nil {
-		log.Fatalf("failed to connect to rabbitmq: %v", err)
-	}
+	usageReporter := infrastructure.NewAsyncUsageReporter(redisAddr())
 
 	invokeUseCase := application.NewInvokeUseCase(agentRepo, runtime, usageReporter)
 	createAgentUseCase := application.NewCreateAgentUseCase(agentRepo)

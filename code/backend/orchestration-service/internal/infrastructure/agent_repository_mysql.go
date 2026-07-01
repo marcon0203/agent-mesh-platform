@@ -10,7 +10,7 @@ import (
 )
 
 // AgentMySQLRepository 实现 domain.AgentRepository，对接 infra/schema.sql 的
-// agent 表。挂载能力列表 + Hook 配置以 JSON 形式存进 config_json 列，
+// agent 表（PostgreSQL）。挂载能力列表 + Hook 配置以 JSON 形式存进 config_json 列，
 // 与技术规格文档第四章的表结构注释一致，避免为每个字段单独建关联表。
 type AgentMySQLRepository struct {
 	db *sql.DB
@@ -52,7 +52,7 @@ func agentStatusFromDB(v int) domain.AgentStatus {
 
 func (r *AgentMySQLRepository) scanAgent(row rowScanner) (*domain.Agent, error) {
 	var (
-		dbID, ownerID    uint64
+		dbID, ownerID    int64
 		name, version    string
 		configRaw        []byte
 		statusVal        int
@@ -79,7 +79,7 @@ func (r *AgentMySQLRepository) scanAgent(row rowScanner) (*domain.Agent, error) 
 	}
 
 	return domain.RehydrateAgent(
-		strconv.FormatUint(dbID, 10), name, cfg.LoopTemplate, cfg.Capabilities, cfg.Hooks,
+		strconv.FormatInt(dbID, 10), name, cfg.LoopTemplate, cfg.Capabilities, cfg.Hooks,
 		maxDepth, version, agentStatusFromDB(statusVal), modelProviderID,
 	), nil
 }
@@ -87,16 +87,11 @@ func (r *AgentMySQLRepository) scanAgent(row rowScanner) (*domain.Agent, error) 
 const agentSelectCols = `id, name, owner_id, config_json, version, status, max_depth, model_provider_id`
 
 func (r *AgentMySQLRepository) FindByID(id string) (*domain.Agent, error) {
-	row := r.db.QueryRow(`SELECT `+agentSelectCols+` FROM agent WHERE id = ?`, id)
+	row := r.db.QueryRow(`SELECT `+agentSelectCols+` FROM agent WHERE id = $1`, id)
 	return r.scanAgent(row)
 }
 
-// Save 插入或更新一条记录；新建 Agent（ID 为空）时由 MySQL 自增列生成 ID。
-// domain.Agent 没有暴露 ID 的 setter，调用方需要用返回值里的新 ID 重新
-// FindByID 来获得带 ID 的聚合根（与 ModelProviderRepository.Save 的模式保持一致，
-// 这里为了不改动已有的 domain.AgentRepository.Save(agent) error 签名，
-// 通过 owner 传入的 id 为空时退化为"仅插入，调用方随后自行查询"）。
-// Save 插入或更新一条记录；新建 Agent（ID 为空）时由 MySQL 自增列生成 ID，
+// Save 插入或更新一条记录；新建 Agent（ID 为空）时由 Postgres 自增列生成 ID，
 // 通过返回值把生成的 ID 回填到一个新的聚合根实例上（聚合根本身不暴露 ID setter，
 // 与 ModelProviderRepository.Save 的模式保持一致）。
 func (r *AgentMySQLRepository) Save(agent *domain.Agent) (*domain.Agent, error) {
@@ -125,14 +120,12 @@ func (r *AgentMySQLRepository) Save(agent *domain.Agent) (*domain.Agent, error) 
 	const placeholderOwnerID = 1
 
 	if agent.ID() == "" {
-		res, err := r.db.Exec(
-			`INSERT INTO agent (name, owner_id, config_json, version, status, max_depth, model_provider_id) VALUES (?,?,?,?,?,?,?)`,
+		var newID int64
+		err := r.db.QueryRow(
+			`INSERT INTO agent (name, owner_id, config_json, version, status, max_depth, model_provider_id)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
 			agent.Name(), placeholderOwnerID, configRaw, agent.Version(), agentStatusToDB(agent.Status()), agent.MaxDepth(), modelProviderID,
-		)
-		if err != nil {
-			return nil, err
-		}
-		newID, err := res.LastInsertId()
+		).Scan(&newID)
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +136,7 @@ func (r *AgentMySQLRepository) Save(agent *domain.Agent) (*domain.Agent, error) 
 	}
 
 	_, err = r.db.Exec(
-		`UPDATE agent SET name=?, config_json=?, version=?, status=?, max_depth=?, model_provider_id=? WHERE id=?`,
+		`UPDATE agent SET name=$1, config_json=$2, version=$3, status=$4, max_depth=$5, model_provider_id=$6 WHERE id=$7`,
 		agent.Name(), configRaw, agent.Version(), agentStatusToDB(agent.Status()), agent.MaxDepth(), modelProviderID, agent.ID(),
 	)
 	if err != nil {

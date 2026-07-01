@@ -19,17 +19,17 @@ import (
 	"github.com/agentmesh/marketplace-service/internal/interfaces"
 )
 
-func mysqlDSN() string {
-	if dsn := os.Getenv("MARKETPLACE_MYSQL_DSN"); dsn != "" {
+func postgresDSN() string {
+	if dsn := os.Getenv("MARKETPLACE_POSTGRES_DSN"); dsn != "" {
 		return dsn
 	}
-	return "root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true"
+	return "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
 }
 
 func main() {
-	db, err := infrastructure.NewMySQLConnection(mysqlDSN())
+	db, err := infrastructure.NewPostgresConnection(postgresDSN())
 	if err != nil {
-		log.Fatalf("failed to connect to mysql: %v", err)
+		log.Fatalf("failed to connect to postgres: %v", err)
 	}
 
 	repo := infrastructure.NewCapabilityMySQLRepository(db)

@@ -22,7 +22,7 @@ agent-mesh-platform/
 │       └── src/pages/              能力市场 / Agent 构建器 / Workbench / 控制台
 │
 └── infra/
-    ├── docker-compose.yml          本地开发基础设施（MySQL/Redis/RabbitMQ）
+    ├── docker-compose.yml          本地开发基础设施（PostgreSQL/Redis，用量事件走 asynq 复用 Redis）
     └── schema.sql                  核心数据库表结构
 ```
 
@@ -45,7 +45,7 @@ make run-billing            # :8083
 make frontend                # :5173
 ```
 
-`make help` 能看到全部命令。各服务需要的环境变量（MySQL DSN、Redis 地址、RabbitMQ URL、
+`make help` 能看到全部命令。各服务需要的环境变量（Postgres DSN、Redis 地址、
 模型供应商 API Key 加密密钥）都在 Makefile 里给了本地开发默认值，无需额外配置即可跑通。
 
 ## 文档与代码的对应关系

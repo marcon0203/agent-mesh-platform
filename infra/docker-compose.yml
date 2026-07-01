@@ -1,27 +1,20 @@
-version: "3.8"
-
 services:
-  mysql:
-    image: mysql:8
+  postgres:
+    image: postgres:16
     environment:
-      MYSQL_ROOT_PASSWORD: agentmesh
-      MYSQL_DATABASE: agentmesh
+      POSTGRES_USER: agentmesh
+      POSTGRES_PASSWORD: agentmesh
+      POSTGRES_DB: agentmesh
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql-data:/var/lib/mysql
+      - postgres-data:/var/lib/postgresql/data
 
+  # Redis 身兼两职：gateway-service 的限流令牌桶，以及 asynq（用量事件异步队列）的存储后端。
   redis:
     image: redis:7
     ports:
       - "6379:6379"
 
-  # 用量事件异步消费，MVP 阶段可用 RabbitMQ 代替生产级 RocketMQ/Kafka
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-
 volumes:
-  mysql-data:
+  postgres-data:

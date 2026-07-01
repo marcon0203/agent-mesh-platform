@@ -7,26 +7,25 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/.run/logs"
 mkdir -p "$LOG_DIR"
 
-: "${MYSQL_DSN:=root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true}"
+: "${POSTGRES_DSN:=postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable}"
 : "${REDIS_ADDR:=127.0.0.1:6379}"
-: "${AMQP_URL:=amqp://guest:guest@127.0.0.1:5672/}"
 # 仅供本地开发使用的固定密钥（16 字节 hex，对应 AES-128）。
 # 生产环境务必换成随机生成、妥善保管的密钥。
 : "${MODEL_PROVIDER_ENC_KEY:=000102030405060708090a0b0c0d0e0f}"
 : "${ORCHESTRATION_GRPC_ADDR:=127.0.0.1:9090}"
 
-echo "==> 启动基础设施 (MySQL / Redis / RabbitMQ)"
+echo "==> 启动基础设施 (PostgreSQL / Redis)"
 docker compose -f "$ROOT_DIR/infra/docker-compose.yml" up -d
 
-echo "==> 等待 MySQL 就绪…"
-until docker compose -f "$ROOT_DIR/infra/docker-compose.yml" exec -T mysql \
-  mysqladmin ping -h127.0.0.1 -uroot -pagentmesh --silent >/dev/null 2>&1; do
+echo "==> 等待 PostgreSQL 就绪…"
+until docker compose -f "$ROOT_DIR/infra/docker-compose.yml" exec -T postgres \
+  pg_isready -U agentmesh >/dev/null 2>&1; do
   sleep 1
 done
 
 echo "==> 执行 infra/schema.sql（表已存在会报错，属于正常现象，可忽略）"
-docker compose -f "$ROOT_DIR/infra/docker-compose.yml" exec -T mysql \
-  mysql -uroot -pagentmesh agentmesh < "$ROOT_DIR/infra/schema.sql" || true
+docker compose -f "$ROOT_DIR/infra/docker-compose.yml" exec -T postgres \
+  psql -U agentmesh -d agentmesh < "$ROOT_DIR/infra/schema.sql" || true
 
 PIDS=()
 cleanup() {
@@ -47,21 +46,21 @@ start_service() {
   PIDS+=("$!")
 }
 
-MARKETPLACE_MYSQL_DSN="$MYSQL_DSN" \
+MARKETPLACE_POSTGRES_DSN="$POSTGRES_DSN" \
   start_service marketplace-service go run ./cmd
 
-ORCHESTRATION_MYSQL_DSN="$MYSQL_DSN" \
-  ORCHESTRATION_AMQP_URL="$AMQP_URL" \
+ORCHESTRATION_POSTGRES_DSN="$POSTGRES_DSN" \
+  ORCHESTRATION_REDIS_ADDR="$REDIS_ADDR" \
   MODEL_PROVIDER_ENC_KEY="$MODEL_PROVIDER_ENC_KEY" \
   start_service orchestration-service go run ./cmd
 
-GATEWAY_MYSQL_DSN="$MYSQL_DSN" \
+GATEWAY_POSTGRES_DSN="$POSTGRES_DSN" \
   GATEWAY_REDIS_ADDR="$REDIS_ADDR" \
   ORCHESTRATION_GRPC_ADDR="$ORCHESTRATION_GRPC_ADDR" \
   start_service gateway-service go run ./cmd
 
-BILLING_MYSQL_DSN="$MYSQL_DSN" \
-  BILLING_AMQP_URL="$AMQP_URL" \
+BILLING_POSTGRES_DSN="$POSTGRES_DSN" \
+  BILLING_REDIS_ADDR="$REDIS_ADDR" \
   start_service billing-service go run ./cmd
 
 echo "==> 等待后端服务起来…"
