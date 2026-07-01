@@ -34,6 +34,13 @@ func mysqlDSN() string {
 	return "root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true"
 }
 
+func amqpURL() string {
+	if url := os.Getenv("ORCHESTRATION_AMQP_URL"); url != "" {
+		return url
+	}
+	return "amqp://guest:guest@127.0.0.1:5672/"
+}
+
 func main() {
 	db, err := infrastructure.NewMySQLConnection(mysqlDSN())
 	if err != nil {
@@ -47,7 +54,10 @@ func main() {
 		log.Fatalf("failed to init model provider repository (check MODEL_PROVIDER_ENC_KEY): %v", err)
 	}
 	runtime := infrastructure.NewEinoRuntime(modelProviderRepo)
-	usageReporter := infrastructure.NewAsyncUsageReporter()
+	usageReporter, err := infrastructure.NewAsyncUsageReporter(amqpURL())
+	if err != nil {
+		log.Fatalf("failed to connect to rabbitmq: %v", err)
+	}
 
 	invokeUseCase := application.NewInvokeUseCase(agentRepo, runtime, usageReporter)
 	configureAgentUseCase := application.NewConfigureAgentUseCase(agentRepo)
