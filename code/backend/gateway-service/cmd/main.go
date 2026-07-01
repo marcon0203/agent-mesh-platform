@@ -5,29 +5,67 @@
 package main
 
 import (
-	"context"
 	"log"
+	"os"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	orchestrationpb "github.com/agentmesh/shared/pkg/orchestration"
 
 	"github.com/agentmesh/gateway-service/internal/handler"
 )
 
-func main() {
-	h := server.Default(server.WithHostPorts(":8080"))
+func mysqlDSN() string {
+	if dsn := os.Getenv("GATEWAY_MYSQL_DSN"); dsn != "" {
+		return dsn
+	}
+	return "root:agentmesh@tcp(127.0.0.1:3306)/agentmesh?parseTime=true"
+}
 
-	// TODO: 注册鉴权中间件（API Key 哈希校验 + Scope 校验），见 internal/service/auth.go
-	// TODO: 注册限流中间件（Redis + Lua 令牌桶），见 internal/service/ratelimit.go
-	h.Use(handler.AuthMiddleware(), handler.RateLimitMiddleware())
+func redisAddr() string {
+	if addr := os.Getenv("GATEWAY_REDIS_ADDR"); addr != "" {
+		return addr
+	}
+	return "127.0.0.1:6379"
+}
+
+func orchestrationAddr() string {
+	if addr := os.Getenv("ORCHESTRATION_GRPC_ADDR"); addr != "" {
+		return addr
+	}
+	return "127.0.0.1:9090"
+}
+
+func main() {
+	db, err := handler.NewMySQLConnection(mysqlDSN())
+	if err != nil {
+		log.Fatalf("failed to connect to mysql: %v", err)
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: redisAddr()})
+
+	conn, err := grpc.NewClient(orchestrationAddr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("failed to dial orchestration-service: %v", err)
+	}
+	orchestrationClient := orchestrationpb.NewOrchestrationServiceClient(conn)
+
+	authService := handler.NewAuthService(db)
+	rateLimitService := handler.NewRateLimitService(rdb)
+	agentHandler := handler.NewAgentHandler(orchestrationClient)
+
+	h := server.Default(server.WithHostPorts(":8080"))
 
 	v1 := h.Group("/api/v1")
 	{
-		v1.POST("/agents/:agent_id/sendMsg", handler.SendMsg)
-		v1.POST("/agents/:agent_id/streamMsg", handler.StreamMsg)
+		// openapi.json 是公开文档端点，不需要鉴权/限流。
 		v1.GET("/agents/:agent_id/openapi.json", handler.OpenAPISpec)
+		v1.POST("/agents/:agent_id/sendMsg", authService.Middleware(), rateLimitService.Middleware(), agentHandler.SendMsg)
+		v1.POST("/agents/:agent_id/streamMsg", authService.Middleware(), rateLimitService.Middleware(), agentHandler.StreamMsg)
 	}
 
 	log.Println("gateway-service listening on :8080")
 	h.Spin()
-	_ = context.Background()
 }
