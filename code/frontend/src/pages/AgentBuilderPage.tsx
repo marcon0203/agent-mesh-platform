@@ -4,8 +4,18 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/ca
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/PageHeader"
 import { api } from "@/api/client"
 import type { MountedCapability } from "@/types"
+
+function StepLabel({ num, title }: { num: string; title: string }) {
+  return (
+    <h2 className="mb-4 flex items-baseline gap-3">
+      <span className="font-mono text-xs font-semibold tracking-widest text-muted-foreground">{num}</span>
+      <span className="font-display text-lg font-semibold">{title}</span>
+    </h2>
+  )
+}
 
 const PRE_HOOKS = ["记忆加载", "权限校验", "提示词构建"]
 const POST_HOOKS = ["消费上报", "沙箱清理", "状态回传"]
@@ -58,13 +68,11 @@ export default function AgentBuilderPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <p className="mb-2 font-mono text-xs uppercase tracking-wide text-primary">Agent Builder</p>
-        <h1 className="font-display text-3xl font-semibold">构建 Agent</h1>
-        <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          勾选能力、配置策略即可，执行顺序交给 Agentic Loop 自主决定 —— 不需要手工画流程图。
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="AGENT BUILDER"
+        title="构建 Agent"
+        description="勾选能力、配置策略即可，执行顺序交给 Agentic Loop 自主决定 —— 不需要手工画流程图。"
+      />
 
       <div className="mb-6 max-w-md">
         <label className="mb-2 block text-sm text-muted-foreground">Agent 名称</label>
@@ -103,7 +111,7 @@ export default function AgentBuilderPage() {
 
       {agentId && (
         <>
-          <h2 className="mb-4 font-display text-lg font-semibold">第一步 · 挑选能力</h2>
+          <StepLabel num="01 / SELECT" title="挑选能力" />
           {capabilities.length === 0 ? (
             <Card className="mb-10">
               <CardDescription>市场里还没有已上架的能力，先去能力市场页确认 marketplace-service 是否正常。</CardDescription>
@@ -134,7 +142,7 @@ export default function AgentBuilderPage() {
             </div>
           )}
 
-          <h2 className="mb-4 font-display text-lg font-semibold">第二步 · 配置策略</h2>
+          <StepLabel num="02 / CONFIGURE" title="配置策略" />
           <div className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="glass-panel p-6">
               <p className="mb-3 text-sm font-medium">前处理 Hooks</p>

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { PageHeader } from "@/components/PageHeader"
 import { api } from "@/api/client"
 
 const TYPE_LABEL: Record<string, string> = { tool: "TOOL", skill: "SKILL", agent: "AGENT" }
@@ -9,6 +10,20 @@ const STATUS_LABEL: Record<string, string> = {
   pending_review: "待审核",
   published: "已上架",
   offline: "已下线",
+}
+
+function SkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="glass-panel h-40 animate-pulse p-6">
+          <div className="h-4 w-16 rounded-full bg-white/10" />
+          <div className="mt-4 h-4 w-2/3 rounded bg-white/10" />
+          <div className="mt-3 h-3 w-full rounded bg-white/5" />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function MarketplacePage() {
@@ -26,17 +41,15 @@ export default function MarketplacePage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <p className="mb-2 font-mono text-xs uppercase tracking-wide text-primary">Capability Marketplace</p>
-        <h1 className="font-display text-3xl font-semibold">能力市场</h1>
-        <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          Tool 是原子能力，Skill 是多工具组合而成的复合流程，Agent 也可以作为一种能力被其他 Agent 挂载。
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="CAPABILITY MARKETPLACE"
+        title="能力市场"
+        description="Tool 是原子能力，Skill 是多工具组合而成的复合流程，Agent 也可以作为一种能力被其他 Agent 挂载。"
+      />
 
       <Input placeholder="按名称或用途搜索能力…" className="mb-8 max-w-md" disabled />
 
-      {isLoading && <p className="text-sm text-muted-foreground">加载中…</p>}
+      {isLoading && <SkeletonGrid />}
 
       {error && (
         <Card className="border-destructive/40">
@@ -55,26 +68,28 @@ export default function MarketplacePage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-        {capabilities.map((cap) => (
-          <Card key={cap.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <Badge variant={cap.type}>{TYPE_LABEL[cap.type]}</Badge>
-                {cap.is_builtin && <span className="text-xs font-medium text-accent">平台内置</span>}
-              </div>
-              <CardTitle>{cap.name}</CardTitle>
-              <CardDescription>
-                ID：<span className="font-mono">{cap.id}</span>（装配 Agent 时用它来挂载这个能力）
-              </CardDescription>
-            </CardHeader>
-            <CardFooter>
-              <span>{cap.version || "未发布版本"}</span>
-              <span className="text-accent">{STATUS_LABEL[cap.status] ?? cap.status}</span>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+      {!isLoading && !error && capabilities.length > 0 && (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {capabilities.map((cap) => (
+            <Card key={cap.id}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <Badge variant={cap.type}>{TYPE_LABEL[cap.type]}</Badge>
+                  {cap.is_builtin && <span className="text-xs font-medium text-accent">平台内置</span>}
+                </div>
+                <CardTitle>{cap.name}</CardTitle>
+                <CardDescription>
+                  ID：<span className="font-mono">{cap.id}</span>（装配 Agent 时用它来挂载这个能力）
+                </CardDescription>
+              </CardHeader>
+              <CardFooter>
+                <span>{cap.version || "未发布版本"}</span>
+                <span className="text-accent">{STATUS_LABEL[cap.status] ?? cap.status}</span>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

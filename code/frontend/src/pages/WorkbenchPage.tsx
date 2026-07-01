@@ -2,11 +2,22 @@ import { useEffect, useRef, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/PageHeader"
 import { api } from "@/api/client"
 import type { ChatMessage } from "@/types"
 
 function randomSessionId() {
   return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
+}
+
+function WindowDots() {
+  return (
+    <div className="mb-4 flex items-center gap-1.5 border-b border-glass-border pb-3">
+      <span className="size-2 rounded-full bg-[#ed6a5e]" />
+      <span className="size-2 rounded-full bg-[#f4bf4f]" />
+      <span className="size-2 rounded-full bg-[#61c554]" />
+    </div>
+  )
 }
 
 export default function WorkbenchPage() {
@@ -63,13 +74,7 @@ export default function WorkbenchPage() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
       <div>
-        <div className="mb-6">
-          <p className="mb-2 font-mono text-xs uppercase tracking-wide text-primary">Workbench</p>
-          <h1 className="font-display text-3xl font-semibold">对话调试</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            与开放 API 共用同一套执行引擎，行为完全一致。
-          </p>
-        </div>
+        <PageHeader eyebrow="WORKBENCH" title="对话调试" description="与开放 API 共用同一套执行引擎，行为完全一致。" />
 
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
@@ -92,7 +97,8 @@ export default function WorkbenchPage() {
         </div>
 
         <Card className="mb-4 min-h-[420px] justify-between">
-          <div className="flex flex-col gap-3">
+          <WindowDots />
+          <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
             {messages.length === 0 && (
               <p className="text-sm text-muted-foreground">填好 Agent ID 和 API Key 之后就可以开始对话了。</p>
             )}
@@ -125,7 +131,15 @@ export default function WorkbenchPage() {
       </div>
 
       <Card>
-        <p className="mb-3 text-sm font-medium">调试面板</p>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-medium">调试面板</p>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span
+              className={`size-1.5 rounded-full ${isStreaming ? "animate-pulse bg-accent shadow-[0_0_8px_var(--accent)]" : "bg-muted-foreground/40"}`}
+            />
+            {isStreaming ? "生成中" : "空闲"}
+          </span>
+        </div>
         <p className="mb-4 text-xs text-muted-foreground">
           Session：<span className="font-mono">{sessionId.slice(0, 8)}</span>
           <br />

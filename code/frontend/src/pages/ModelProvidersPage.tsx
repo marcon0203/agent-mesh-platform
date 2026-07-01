@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/comp
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/PageHeader"
 import { api } from "@/api/client"
 import type { ProviderType } from "@/types"
 
@@ -42,14 +43,11 @@ export default function ModelProvidersPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <p className="mb-2 font-mono text-xs uppercase tracking-wide text-primary">Model Providers</p>
-        <h1 className="font-display text-3xl font-semibold">模型供应商</h1>
-        <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          自己接入模型服务商的 API Key，构建 Agent 时选择用哪个供应商来跑对话。
-          Key 只在创建时提交一次，落库前会用服务端密钥加密，列表和详情都不会再回显明文。
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="MODEL PROVIDERS"
+        title="模型供应商"
+        description="自己接入模型服务商的 API Key，构建 Agent 时选择用哪个供应商来跑对话。Key 只在创建时提交一次，落库前会用服务端密钥加密，列表和详情都不会再回显明文。"
+      />
 
       <div className="mb-10 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
         <div>

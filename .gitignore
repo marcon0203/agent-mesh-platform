@@ -9,3 +9,4 @@ code/backend/**/bin/
 # misc
 .DS_Store
 *.log
+.run/

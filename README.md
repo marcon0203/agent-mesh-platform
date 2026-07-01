@@ -28,18 +28,25 @@ agent-mesh-platform/
 
 ## 快速开始
 
-**后端**（各服务独立运行，骨架代码含 TODO 标记，详见 `code/backend/README.md`）：
+**一键启动**（基础设施 + 4 个后端服务 + 前端，Ctrl+C 退出会一并清理后台进程）：
 ```bash
-docker compose -f infra/docker-compose.yml up -d
-cd code/backend/gateway-service && go run ./cmd
+make dev
 ```
 
-**前端**：
+**分开手动跑**（方便单独调试某个服务）：
 ```bash
-cd code/frontend
-npm install
-npm run dev
+docker compose -f infra/docker-compose.yml up -d
+make schema                 # 执行 infra/schema.sql 建表（第一次跑需要）
+
+make run-marketplace        # :8081
+make run-orchestration      # gRPC :9090，admin HTTP :8082
+make run-gateway            # :8080
+make run-billing            # :8083
+make frontend                # :5173
 ```
+
+`make help` 能看到全部命令。各服务需要的环境变量（MySQL DSN、Redis 地址、RabbitMQ URL、
+模型供应商 API Key 加密密钥）都在 Makefile 里给了本地开发默认值，无需额外配置即可跑通。
 
 ## 文档与代码的对应关系
 

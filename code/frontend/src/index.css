@@ -9,7 +9,7 @@
   --glass-border-strong: rgba(120, 170, 255, 0.28);
 
   --foreground: #eaf1ff;
-  --muted-foreground: #7c8bb0;
+  --muted-foreground: #9fb0cc;
 
   --primary: #2f6fed;
   --primary-foreground: #ffffff;
@@ -19,7 +19,7 @@
   --border: var(--glass-border);
   --input: var(--glass-border);
   --ring: #5aa6ff;
-  --radius: 0.9rem;
+  --radius: 1.25rem;
 
   --destructive: #e2544a;
   --destructive-foreground: #ffffff;
@@ -46,18 +46,53 @@
   --color-destructive-foreground: var(--destructive-foreground);
 
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 4px);
-  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 6px);
+  --radius-sm: calc(var(--radius) - 10px);
 
   --font-display: "Space Grotesk", sans-serif;
   --font-sans: "Inter", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
+  position: relative;
+  overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* 环境光晕：整站统一的深空背景氛围，来自 docs/design/portal-reference.html */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+}
+body::before {
+  top: -20%;
+  left: 50%;
+  width: 1200px;
+  height: 1200px;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(47, 111, 237, 0.16) 0%, rgba(47, 111, 237, 0.04) 40%, transparent 70%);
+}
+body::after {
+  bottom: -30%;
+  right: -10%;
+  width: 900px;
+  height: 900px;
+  background: radial-gradient(circle, rgba(63, 224, 208, 0.09) 0%, transparent 65%);
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 .glass-panel {
@@ -66,7 +101,56 @@ body {
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 .glass-panel:hover {
   border-color: var(--glass-border-strong);
+  box-shadow: 0 24px 60px -24px rgba(47, 111, 237, 0.4);
+}
+
+/* 小圆点 + 等宽字号的徽标胶囊，用于每个页面顶部的分类标签（对应参考稿的 .eyebrow） */
+.eyebrow-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(63, 224, 208, 0.25);
+  background: rgba(63, 224, 208, 0.08);
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+}
+.eyebrow-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+/* 渐变强调文字，用于标题里需要突出的关键词 */
+.gradient-text {
+  background: linear-gradient(120deg, var(--ring), var(--accent));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* 细滚动条，弱化默认浏览器滚动条的存在感 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--glass-border-strong);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 170, 255, 0.45);
 }
