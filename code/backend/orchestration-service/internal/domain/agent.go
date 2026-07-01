@@ -3,9 +3,10 @@ package domain
 import "errors"
 
 var (
-	ErrMaxDepthExceeded   = errors.New("40004: exceeded max subagent recursion depth")
-	ErrCapabilityNotFound = errors.New("mounted capability not found in agent config")
-	ErrEmptyAgentName     = errors.New("agent name must not be empty")
+	ErrMaxDepthExceeded      = errors.New("40004: exceeded max subagent recursion depth")
+	ErrCapabilityNotFound    = errors.New("mounted capability not found in agent config")
+	ErrEmptyAgentName        = errors.New("agent name must not be empty")
+	ErrModelProviderRequired = errors.New("agent must select a model provider before publishing")
 )
 
 // LoopTemplate 对应产品规格文档第四章「三层执行模型」里的运行时机制选择。
@@ -18,31 +19,34 @@ const (
 )
 
 // MountedCapability 是值对象：一个 Agent 挂载的一个能力（Tool/Skill/Subagent）。
+// json 标签只是给 interfaces 层的 HTTP handler 解码请求体用的，
+// 领域层本身不 import encoding/json 以外的任何框架包。
 type MountedCapability struct {
-	CapabilityID   string
-	PinnedVersion  string // 默认锁定版本，不自动跟随最新，见产品规格文档 §5.4
-	IsSubagent     bool   // true 时该能力按 Subagent-as-Tool 机制包装调用
+	CapabilityID  string `json:"capability_id"`
+	PinnedVersion string `json:"pinned_version"` // 默认锁定版本，不自动跟随最新，见产品规格文档 §5.4
+	IsSubagent    bool   `json:"is_subagent"`     // true 时该能力按 Subagent-as-Tool 机制包装调用
 }
 
 // HookConfig 描述该 Agent 启用了哪些前处理/后处理 Hook。
 // 可插拔性本身是不变量：一个 Hook 只能是"启用"或"未启用"，不存在中间状态。
 type HookConfig struct {
-	PreHooks  []string
-	PostHooks []string
+	PreHooks  []string `json:"pre_hooks"`
+	PostHooks []string `json:"post_hooks"`
 }
 
 // Agent 是本服务的核心聚合根。
 // 所有会影响执行安全性的规则（递归深度、能力挂载合法性）都必须经过聚合根方法，
 // 不允许 application 层直接拼装一个 Agent struct 绕过校验。
 type Agent struct {
-	id           string
-	name         string
-	loopTemplate LoopTemplate
-	capabilities []MountedCapability
-	hooks        HookConfig
-	maxDepth     int32 // 子 Agent 最大递归深度，默认 3，见技术规格文档 §6.5
-	version      string
-	status       AgentStatus
+	id              string
+	name            string
+	loopTemplate    LoopTemplate
+	capabilities    []MountedCapability
+	hooks           HookConfig
+	maxDepth        int32 // 子 Agent 最大递归深度，默认 3，见技术规格文档 §6.5
+	version         string
+	status          AgentStatus
+	modelProviderID string // 引用 ModelProvider 聚合的 ID，决定执行时用哪个模型供应商
 }
 
 type AgentStatus string
@@ -103,9 +107,22 @@ func (a *Agent) EnableHooks(cfg HookConfig) {
 	a.hooks = cfg
 }
 
+// SetModelProvider 挂载该 Agent 执行时使用的模型供应商，引用由用户在
+// 模型供应商配置页里自建的 ModelProvider（见 model_provider.go）。
+func (a *Agent) SetModelProvider(providerID string) error {
+	if providerID == "" {
+		return errors.New("model provider id must not be empty")
+	}
+	a.modelProviderID = providerID
+	return nil
+}
+
 func (a *Agent) Publish() error {
 	if len(a.capabilities) == 0 {
 		return errors.New("cannot publish an agent with no mounted capabilities")
+	}
+	if a.modelProviderID == "" {
+		return ErrModelProviderRequired
 	}
 	a.status = AgentStatusPublished
 	return nil
@@ -113,9 +130,26 @@ func (a *Agent) Publish() error {
 
 // Getter：聚合根内部状态只读暴露，禁止外部直接修改字段。
 func (a *Agent) ID() string                        { return a.id }
-func (a *Agent) Name() string                       { return a.name }
-func (a *Agent) LoopTemplate() LoopTemplate          { return a.loopTemplate }
-func (a *Agent) Capabilities() []MountedCapability   { return a.capabilities }
-func (a *Agent) Hooks() HookConfig                   { return a.hooks }
-func (a *Agent) MaxDepth() int32                     { return a.maxDepth }
-func (a *Agent) Status() AgentStatus                 { return a.status }
+func (a *Agent) Name() string                      { return a.name }
+func (a *Agent) LoopTemplate() LoopTemplate        { return a.loopTemplate }
+func (a *Agent) Capabilities() []MountedCapability { return a.capabilities }
+func (a *Agent) Hooks() HookConfig                 { return a.hooks }
+func (a *Agent) MaxDepth() int32                   { return a.maxDepth }
+func (a *Agent) Status() AgentStatus               { return a.status }
+func (a *Agent) ModelProviderID() string           { return a.modelProviderID }
+func (a *Agent) Version() string                   { return a.version }
+
+// RehydrateAgent 供仓储层从持久化存储重建聚合根，跳过构造校验。
+func RehydrateAgent(id, name string, loopTemplate LoopTemplate, capabilities []MountedCapability, hooks HookConfig, maxDepth int32, version string, status AgentStatus, modelProviderID string) *Agent {
+	return &Agent{
+		id:              id,
+		name:            name,
+		loopTemplate:    loopTemplate,
+		capabilities:    capabilities,
+		hooks:           hooks,
+		maxDepth:        maxDepth,
+		version:         version,
+		status:          status,
+		modelProviderID: modelProviderID,
+	}
+}

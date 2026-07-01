@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package agentmesh.orchestration;
-option go_package = "github.com/agentmesh/shared/proto/orchestration";
+option go_package = "github.com/agentmesh/shared/pkg/orchestration";
 
 // 内部服务间调用契约，对应技术规格文档第五章。
 service OrchestrationService {

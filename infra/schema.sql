@@ -27,17 +27,35 @@ CREATE TABLE capability_version (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='能力版本表';
 
 CREATE TABLE agent (
-    id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    name          VARCHAR(100)    NOT NULL,
-    owner_id      BIGINT UNSIGNED NOT NULL,
-    config_json   JSON            NOT NULL COMMENT '挂载能力列表 + Hook 配置 + Loop 模板',
-    version       VARCHAR(20)     NOT NULL,
-    status        TINYINT         NOT NULL DEFAULT 1 COMMENT '1开发中 2已发布 3已下线',
-    max_depth     TINYINT         NOT NULL DEFAULT 3 COMMENT '子 Agent 最大递归深度',
-    created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name               VARCHAR(100)    NOT NULL,
+    owner_id           BIGINT UNSIGNED NOT NULL,
+    config_json        JSON            NOT NULL COMMENT '挂载能力列表 + Hook 配置 + Loop 模板',
+    version            VARCHAR(20)     NOT NULL,
+    status             TINYINT         NOT NULL DEFAULT 1 COMMENT '1开发中 2已发布 3已下线',
+    max_depth          TINYINT         NOT NULL DEFAULT 3 COMMENT '子 Agent 最大递归深度',
+    model_provider_id  BIGINT UNSIGNED          COMMENT '引用 model_provider.id，决定该 Agent 用哪个模型供应商执行',
+    created_at         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_owner (owner_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent 主表';
+
+-- 表名：model_provider（用户自建的模型供应商配置）
+-- 对应实现计划里的人工决策：模型接入不写死单一供应商，而是让用户在前端自建
+-- provider（含 API Key），Agent 发布时选择使用哪个 provider。归属 orchestration-service。
+CREATE TABLE model_provider (
+    id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    owner_id      BIGINT UNSIGNED NOT NULL,
+    name          VARCHAR(100)    NOT NULL COMMENT '用户自定义的供应商别名',
+    provider_type TINYINT         NOT NULL COMMENT '1=openai_compatible 2=anthropic',
+    base_url      VARCHAR(255)             COMMENT 'OpenAI 兼容类型必填，Anthropic 可选（默认官方端点）',
+    model_name    VARCHAR(100)    NOT NULL COMMENT '实际请求时使用的模型名',
+    api_key_cipher VARBINARY(512) NOT NULL COMMENT 'AES-GCM 对称加密后的 API Key 密文',
+    status        TINYINT         NOT NULL DEFAULT 1 COMMENT '1启用 2已禁用',
+    created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_owner (owner_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模型供应商配置表';
 
 CREATE TABLE agent_run (
     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

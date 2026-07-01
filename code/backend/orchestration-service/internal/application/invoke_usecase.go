@@ -46,12 +46,28 @@ func (uc *InvokeUseCase) Execute(cmd InvokeCommand, out chan<- domain.InvokeChun
 		Depth:     cmd.Depth,
 	}
 
-	if err := uc.Runtime.Run(agent, runCtx, cmd.Message, out); err != nil {
-		return err
+	// relay 是 Runtime.Run 和对外的 out 之间的中转：每个 chunk 先经过这里
+	// 累加 tokens，再转发给调用方，这样上报用量不需要 Runtime 关心计费细节。
+	relay := make(chan domain.InvokeChunk)
+	pumpDone := make(chan struct{})
+	var totalTokens int32
+	go func() {
+		defer close(pumpDone)
+		for chunk := range relay {
+			totalTokens += chunk.Tokens
+			out <- chunk
+		}
+	}()
+
+	runErr := uc.Runtime.Run(agent, runCtx, cmd.Message, relay)
+	close(relay)
+	<-pumpDone
+
+	if runErr != nil {
+		return runErr
 	}
 
-	// TODO: 从 out 消费的 chunk 中累加 tokens，调用结束后异步上报
-	// go uc.Usage.Report(runCtx, totalTokens)
+	go uc.Usage.Report(runCtx, totalTokens)
 
 	return nil
 }

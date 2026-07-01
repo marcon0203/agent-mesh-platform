@@ -14,11 +14,12 @@ func NewConfigureAgentUseCase(agents domain.AgentRepository) *ConfigureAgentUseC
 }
 
 type ConfigureAgentCommand struct {
-	AgentID      string
-	Capabilities []domain.MountedCapability
-	MaxDepth     int32
-	Hooks        domain.HookConfig
-	Publish      bool
+	AgentID         string
+	Capabilities    []domain.MountedCapability
+	MaxDepth        int32
+	Hooks           domain.HookConfig
+	ModelProviderID string
+	Publish         bool
 }
 
 func (uc *ConfigureAgentUseCase) Execute(cmd ConfigureAgentCommand) error {
@@ -34,6 +35,12 @@ func (uc *ConfigureAgentUseCase) Execute(cmd ConfigureAgentCommand) error {
 		return err
 	}
 	agent.EnableHooks(cmd.Hooks)
+
+	if cmd.ModelProviderID != "" {
+		if err := agent.SetModelProvider(cmd.ModelProviderID); err != nil {
+			return err
+		}
+	}
 
 	if cmd.Publish {
 		if err := agent.Publish(); err != nil {
