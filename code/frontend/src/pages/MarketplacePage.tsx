@@ -40,7 +40,7 @@ export default function MarketplacePage() {
   ]
 
   return (
-    <div>
+    <div className="mx-auto max-w-6xl px-8 py-16">
       <PageHeader
         eyebrow="CAPABILITY MARKETPLACE"
         title="能力市场"
@@ -63,7 +63,7 @@ export default function MarketplacePage() {
           <CardTitle>市场里还没有已上架的能力</CardTitle>
           <CardDescription>
             marketplace-service 启动时会自动预置两个内置 Tool（网页检索、日历解析），
-            如果这里是空的，检查一下 marketplace-service 是否已经启动并连上了 MySQL。
+            如果这里是空的，检查一下 marketplace-service 是否已经启动并连上了 PostgreSQL。
           </CardDescription>
         </Card>
       )}
