@@ -45,8 +45,14 @@ make run-billing            # :8083
 make frontend                # :5173
 ```
 
-`make help` 能看到全部命令。各服务需要的环境变量（Postgres DSN、Redis 地址、
-模型供应商 API Key 加密密钥）都在 Makefile 里给了本地开发默认值，无需额外配置即可跑通。
+`make help` 能看到全部命令。
+
+**配置**：4 个后端服务各自在服务目录下有一个 `config.yaml`（Postgres DSN、Redis
+地址、监听端口、模型供应商 API Key 加密密钥……），带本地开发默认值，无需额外配置即可跑通。
+生产环境改配置优先用同名环境变量覆盖（比如 `ORCHESTRATION_POSTGRES_DSN`、
+`MODEL_PROVIDER_ENC_KEY`），不要把生产 DSN/密钥写进 `config.yaml` 提交到仓库；
+配置文件路径本身也能用 `CONFIG_FILE` 环境变量覆盖。优先级：环境变量 >
+`config.yaml` > 代码里的默认值，加载逻辑在 `code/backend/shared/pkg/config`。
 
 ## 文档与代码的对应关系
 

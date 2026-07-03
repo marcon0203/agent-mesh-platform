@@ -16,8 +16,8 @@ type ModelProviderMySQLRepository struct {
 	cipher *apiKeyCipher
 }
 
-func NewModelProviderMySQLRepository(db *sql.DB) (*ModelProviderMySQLRepository, error) {
-	c, err := newAPIKeyCipher()
+func NewModelProviderMySQLRepository(db *sql.DB, encKeyHex string) (*ModelProviderMySQLRepository, error) {
+	c, err := newAPIKeyCipher(encKeyHex)
 	if err != nil {
 		return nil, err
 	}

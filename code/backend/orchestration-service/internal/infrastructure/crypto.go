@@ -7,20 +7,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"os"
 )
 
 // apiKeyCipher 用 AES-GCM 对称加密 ModelProvider.APIKey 后再落库，
-// 避免 api_key 明文出现在数据库里。密钥来自环境变量 MODEL_PROVIDER_ENC_KEY
-// （16/24/32 字节的 hex 编码字符串，分别对应 AES-128/192/256）。
+// 避免 api_key 明文出现在数据库里。密钥由调用方传入（来自 Config.ModelProviderEncKey，
+// 16/24/32 字节的 hex 编码字符串，分别对应 AES-128/192/256），不在这里直接读环境变量——
+// 统一由 config.go 的 LoadConfig 决定"配置文件 vs 环境变量"的优先级。
 type apiKeyCipher struct {
 	gcm cipher.AEAD
 }
 
-func newAPIKeyCipher() (*apiKeyCipher, error) {
-	keyHex := os.Getenv("MODEL_PROVIDER_ENC_KEY")
+func newAPIKeyCipher(keyHex string) (*apiKeyCipher, error) {
 	if keyHex == "" {
-		return nil, errors.New("MODEL_PROVIDER_ENC_KEY is not set")
+		return nil, errors.New("model_provider_enc_key is not set")
 	}
 	key, err := hex.DecodeString(keyHex)
 	if err != nil {

@@ -1,12 +1,13 @@
 // gateway-service 是平台唯一对外入口。
 // 职责：鉴权（API Key / OAuth2 / Session）、限流、路由到 orchestration-service、
 // SSE 转发、按 Agent 自动生成 OpenAPI 文档。
+// 配置来自服务目录下的 config.yaml，环境变量可覆盖同名字段（见
+// internal/handler/config.go），本地开发不改配置直接跑就行。
 // 详细设计见 docs/Agent开放平台_技术规格文档.md 第三、六章。
 package main
 
 import (
 	"log"
-	"os"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/redis/go-redis/v9"
@@ -18,35 +19,19 @@ import (
 	"github.com/agentmesh/gateway-service/internal/handler"
 )
 
-func postgresDSN() string {
-	if dsn := os.Getenv("GATEWAY_POSTGRES_DSN"); dsn != "" {
-		return dsn
-	}
-	return "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
-}
-
-func redisAddr() string {
-	if addr := os.Getenv("GATEWAY_REDIS_ADDR"); addr != "" {
-		return addr
-	}
-	return "127.0.0.1:6379"
-}
-
-func orchestrationAddr() string {
-	if addr := os.Getenv("ORCHESTRATION_GRPC_ADDR"); addr != "" {
-		return addr
-	}
-	return "127.0.0.1:9090"
-}
-
 func main() {
-	db, err := handler.NewPostgresConnection(postgresDSN())
+	cfg, err := handler.LoadConfig()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
+	db, err := handler.NewPostgresConnection(cfg.PostgresDSN)
 	if err != nil {
 		log.Fatalf("failed to connect to postgres: %v", err)
 	}
-	rdb := redis.NewClient(&redis.Options{Addr: redisAddr()})
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
 
-	conn, err := grpc.NewClient(orchestrationAddr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(cfg.OrchestrationGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("failed to dial orchestration-service: %v", err)
 	}
@@ -56,7 +41,7 @@ func main() {
 	rateLimitService := handler.NewRateLimitService(rdb)
 	agentHandler := handler.NewAgentHandler(orchestrationClient)
 
-	h := server.Default(server.WithHostPorts(":8080"))
+	h := server.Default(server.WithHostPorts(cfg.HTTPAddr))
 
 	v1 := h.Group("/api/v1")
 	{
@@ -66,6 +51,6 @@ func main() {
 		v1.POST("/agents/:agent_id/streamMsg", authService.Middleware(), rateLimitService.Middleware(), agentHandler.StreamMsg)
 	}
 
-	log.Println("gateway-service listening on :8080")
+	log.Printf("gateway-service listening on %s\n", cfg.HTTPAddr)
 	h.Spin()
 }

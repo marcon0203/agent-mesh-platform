@@ -1,0 +1,4 @@
+# marketplace-service 本地开发配置。生产环境优先用同名环境变量覆盖
+# （见各字段的 env 优先级说明），不要把生产 DSN 写进这个文件。
+postgres_dsn: "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
+http_addr: ":8081"

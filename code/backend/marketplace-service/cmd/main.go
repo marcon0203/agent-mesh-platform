@@ -6,28 +6,28 @@
 //   internal/infrastructure  技术细节：仓储实现、MCP 注册中心适配器
 //   internal/interfaces      HTTP 协议转换层
 //
+// 配置来自服务目录下的 config.yaml，环境变量可覆盖同名字段（见
+// internal/infrastructure/config.go），本地开发不改配置直接跑就行。
+//
 // 详见 docs/Agent开放平台_技术规格文档.md 第三章、6.2 节。
 package main
 
 import (
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/agentmesh/marketplace-service/internal/application"
 	"github.com/agentmesh/marketplace-service/internal/infrastructure"
 	"github.com/agentmesh/marketplace-service/internal/interfaces"
 )
 
-func postgresDSN() string {
-	if dsn := os.Getenv("MARKETPLACE_POSTGRES_DSN"); dsn != "" {
-		return dsn
-	}
-	return "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
-}
-
 func main() {
-	db, err := infrastructure.NewPostgresConnection(postgresDSN())
+	cfg, err := infrastructure.LoadConfig()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
+	db, err := infrastructure.NewPostgresConnection(cfg.PostgresDSN)
 	if err != nil {
 		log.Fatalf("failed to connect to postgres: %v", err)
 	}
@@ -49,6 +49,6 @@ func main() {
 	mux.HandleFunc("POST /capabilities/{id}/submit", handler.SubmitCapability)
 	mux.HandleFunc("POST /capabilities/{id}/approve", handler.ApproveCapability)
 
-	log.Println("marketplace-service listening on :8081")
-	log.Fatal(http.ListenAndServe(":8081", mux))
+	log.Printf("marketplace-service listening on %s\n", cfg.HTTPAddr)
+	log.Fatal(http.ListenAndServe(cfg.HTTPAddr, mux))
 }

@@ -8,6 +8,9 @@
 //	internal/service     asynq 任务消费者
 //	internal/repository  usage_record / agent_run 数据访问
 //
+// 配置来自服务目录下的 config.yaml，环境变量可覆盖同名字段（见
+// internal/repository/config.go），本地开发不改配置直接跑就行。
+//
 // 分成结算（按 capability_id 聚合生成结算单）属于 M2 范围，这里先跑通
 // "消费用量事件 → 落库 → 可查询"的链路。
 package main
@@ -15,35 +18,25 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/agentmesh/billing-service/internal/handler"
 	"github.com/agentmesh/billing-service/internal/repository"
 	"github.com/agentmesh/billing-service/internal/service"
 )
 
-func postgresDSN() string {
-	if dsn := os.Getenv("BILLING_POSTGRES_DSN"); dsn != "" {
-		return dsn
-	}
-	return "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
-}
-
-func redisAddr() string {
-	if addr := os.Getenv("BILLING_REDIS_ADDR"); addr != "" {
-		return addr
-	}
-	return "127.0.0.1:6379"
-}
-
 func main() {
-	db, err := repository.NewPostgresConnection(postgresDSN())
+	cfg, err := repository.LoadConfig()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
+	db, err := repository.NewPostgresConnection(cfg.PostgresDSN)
 	if err != nil {
 		log.Fatalf("failed to connect to postgres: %v", err)
 	}
 	usageRepo := repository.NewUsageRepository(db)
 
-	consumer := service.NewUsageConsumer(redisAddr(), usageRepo)
+	consumer := service.NewUsageConsumer(cfg.RedisAddr, usageRepo)
 	go func() {
 		log.Println("billing-service: consuming usage events")
 		if err := consumer.Run(); err != nil {
@@ -55,6 +48,6 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /usage", usageHandler.GetUsageByAgent)
 
-	log.Println("billing-service listening on :8083 (usage query)")
-	log.Fatal(http.ListenAndServe(":8083", mux))
+	log.Printf("billing-service listening on %s (usage query)\n", cfg.HTTPAddr)
+	log.Fatal(http.ListenAndServe(cfg.HTTPAddr, mux))
 }

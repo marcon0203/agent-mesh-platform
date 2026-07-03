@@ -9,6 +9,9 @@
 //	internal/infrastructure  技术细节：Eino ADK 接入、MySQL 仓储实现、异步用量上报
 //	internal/interfaces      gRPC / HTTP 协议转换层
 //
+// 配置来自服务目录下的 config.yaml，环境变量可覆盖同名字段（见
+// internal/infrastructure/config.go），本地开发不改配置直接跑就行。
+//
 // 详见 docs/Agent开放平台_技术规格文档.md 第六章 6.1 节。
 package main
 
@@ -16,7 +19,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 
 	"google.golang.org/grpc"
 
@@ -27,34 +29,25 @@ import (
 	"github.com/agentmesh/orchestration-service/internal/interfaces"
 )
 
-func postgresDSN() string {
-	if dsn := os.Getenv("ORCHESTRATION_POSTGRES_DSN"); dsn != "" {
-		return dsn
-	}
-	return "postgres://agentmesh:agentmesh@127.0.0.1:5432/agentmesh?sslmode=disable"
-}
-
-func redisAddr() string {
-	if addr := os.Getenv("ORCHESTRATION_REDIS_ADDR"); addr != "" {
-		return addr
-	}
-	return "127.0.0.1:6379"
-}
-
 func main() {
-	db, err := infrastructure.NewPostgresConnection(postgresDSN())
+	cfg, err := infrastructure.LoadConfig()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
+	db, err := infrastructure.NewPostgresConnection(cfg.PostgresDSN)
 	if err != nil {
 		log.Fatalf("failed to connect to postgres: %v", err)
 	}
 
 	// 依赖注入：infrastructure 实现 domain 定义的端口，application 只依赖端口
 	agentRepo := infrastructure.NewAgentMySQLRepository(db)
-	modelProviderRepo, err := infrastructure.NewModelProviderMySQLRepository(db)
+	modelProviderRepo, err := infrastructure.NewModelProviderMySQLRepository(db, cfg.ModelProviderEncKey)
 	if err != nil {
-		log.Fatalf("failed to init model provider repository (check MODEL_PROVIDER_ENC_KEY): %v", err)
+		log.Fatalf("failed to init model provider repository (check model_provider_enc_key): %v", err)
 	}
 	runtime := infrastructure.NewEinoRuntime(modelProviderRepo, agentRepo)
-	usageReporter := infrastructure.NewAsyncUsageReporter(redisAddr())
+	usageReporter := infrastructure.NewAsyncUsageReporter(cfg.RedisAddr)
 
 	invokeUseCase := application.NewInvokeUseCase(agentRepo, runtime, usageReporter)
 	createAgentUseCase := application.NewCreateAgentUseCase(agentRepo)
@@ -64,9 +57,9 @@ func main() {
 	grpcHandler := interfaces.NewOrchestrationGRPCServer(invokeUseCase)
 	adminHandler := interfaces.NewAdminHTTPHandler(createAgentUseCase, configureAgentUseCase, modelProviderUseCase)
 
-	go serveAdminHTTP(adminHandler)
+	go serveAdminHTTP(adminHandler, cfg.AdminHTTPAddr)
 
-	lis, err := net.Listen("tcp", ":9090")
+	lis, err := net.Listen("tcp", cfg.GRPCAddr)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -74,13 +67,13 @@ func main() {
 	grpcServer := grpc.NewServer()
 	orchestrationpb.RegisterOrchestrationServiceServer(grpcServer, grpcHandler)
 
-	log.Println("orchestration-service listening on :9090 (internal gRPC)")
+	log.Printf("orchestration-service listening on %s (internal gRPC)\n", cfg.GRPCAddr)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }
 
-func serveAdminHTTP(handler *interfaces.AdminHTTPHandler) {
+func serveAdminHTTP(handler *interfaces.AdminHTTPHandler, addr string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /agents", handler.CreateAgentHandler)
 	mux.HandleFunc("GET /agents", handler.ListAgents)
@@ -89,6 +82,6 @@ func serveAdminHTTP(handler *interfaces.AdminHTTPHandler) {
 	mux.HandleFunc("POST /model-providers", handler.CreateModelProvider)
 	mux.HandleFunc("GET /model-providers", handler.ListModelProviders)
 
-	log.Println("orchestration-service listening on :8082 (admin HTTP: agent config / model providers)")
-	log.Fatal(http.ListenAndServe(":8082", mux))
+	log.Printf("orchestration-service listening on %s (admin HTTP: agent config / model providers)\n", addr)
+	log.Fatal(http.ListenAndServe(addr, mux))
 }
