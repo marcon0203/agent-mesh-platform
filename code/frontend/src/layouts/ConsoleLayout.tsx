@@ -77,21 +77,29 @@ export default function ConsoleLayout() {
           collapsed ? "w-16" : "w-60"
         )}
       >
-        <Link
-          to="/console"
+        <div
           className={cn(
-            "flex h-14 shrink-0 items-center gap-2.5 border-b border-glass-border px-4",
+            "flex h-14 shrink-0 items-center gap-1.5 border-b border-glass-border px-3",
             collapsed && "justify-center px-0"
           )}
         >
-          <LogoMark className="size-7 shrink-0 drop-shadow-[0_0_6px_rgba(90,166,255,0.5)]" />
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? "展开导航" : "收起导航"}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+          >
+            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
           {!collapsed && (
-            <span className="font-display text-base font-semibold">
-              枢络
-              <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">Console</span>
-            </span>
+            <Link to="/console" className="flex items-center gap-2 overflow-hidden">
+              <LogoMark className="size-6 shrink-0 drop-shadow-[0_0_6px_rgba(90,166,255,0.5)]" />
+              <span className="truncate font-display text-base font-semibold">
+                枢络
+                <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">Console</span>
+              </span>
+            </Link>
           )}
-        </Link>
+        </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           {NAV_GROUPS.map((group) => (
@@ -126,20 +134,6 @@ export default function ConsoleLayout() {
             </div>
           ))}
         </nav>
-
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          className="flex h-11 shrink-0 items-center justify-center gap-2 border-t border-glass-border text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="size-4" />
-          ) : (
-            <>
-              <PanelLeftClose className="size-4" />
-              <span className="text-xs">收起导航</span>
-            </>
-          )}
-        </button>
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
