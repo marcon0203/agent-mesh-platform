@@ -91,6 +91,27 @@ func (r *AgentMySQLRepository) FindByID(id string) (*domain.Agent, error) {
 	return r.scanAgent(row)
 }
 
+// ListPublished 返回所有已发布的 Agent，供前端 Agent 构建器挑选"挂载哪个 Agent
+// 作为 Subagent"时使用，也供 eino_runtime.go 校验一个 Subagent 挂载是否合法
+// （只有已发布的 Agent 才允许被递归调用）。
+func (r *AgentMySQLRepository) ListPublished() ([]*domain.Agent, error) {
+	rows, err := r.db.Query(`SELECT `+agentSelectCols+` FROM agent WHERE status = $1 ORDER BY id DESC`, agentStatusToDB(domain.AgentStatusPublished))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []*domain.Agent
+	for rows.Next() {
+		agent, err := r.scanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		agents = append(agents, agent)
+	}
+	return agents, rows.Err()
+}
+
 // Save 插入或更新一条记录；新建 Agent（ID 为空）时由 Postgres 自增列生成 ID，
 // 通过返回值把生成的 ID 回填到一个新的聚合根实例上（聚合根本身不暴露 ID setter，
 // 与 ModelProviderRepository.Save 的模式保持一致）。

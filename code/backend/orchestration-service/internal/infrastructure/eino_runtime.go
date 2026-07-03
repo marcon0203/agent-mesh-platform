@@ -3,10 +3,12 @@ package infrastructure
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/callbacks"
 	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/components/tool"
 
 	"github.com/cloudwego/eino-ext/components/model/claude"
 	"github.com/cloudwego/eino-ext/components/model/openai"
@@ -23,10 +25,11 @@ const defaultClaudeMaxTokens = 4096
 // 这样即便未来更换执行引擎，改动范围也只在这一个文件。
 type EinoRuntime struct {
 	ModelProviders domain.ModelProviderRepository
+	Agents         domain.AgentRepository
 }
 
-func NewEinoRuntime(modelProviders domain.ModelProviderRepository) *EinoRuntime {
-	return &EinoRuntime{ModelProviders: modelProviders}
+func NewEinoRuntime(modelProviders domain.ModelProviderRepository, agents domain.AgentRepository) *EinoRuntime {
+	return &EinoRuntime{ModelProviders: modelProviders, Agents: agents}
 }
 
 // buildChatModel 把 ModelProvider 聚合根翻译成具体的 Eino ChatModel 组件实例。
@@ -75,31 +78,9 @@ func maxIterationsForTemplate(t domain.LoopTemplate) int {
 func (r *EinoRuntime) Run(agent *domain.Agent, runCtx domain.RunContext, message string, out chan<- domain.InvokeChunk) error {
 	ctx := context.Background()
 
-	if agent.ModelProviderID() == "" {
-		return fmt.Errorf("agent %s has no model provider configured", agent.ID())
-	}
-	provider, err := r.ModelProviders.FindByID(agent.ModelProviderID())
+	chatModelAgent, err := r.buildAgentNode(ctx, agent, runCtx.Depth)
 	if err != nil {
-		return fmt.Errorf("load model provider: %w", err)
-	}
-	if !provider.IsEnabled() {
-		return fmt.Errorf("model provider %s is disabled", provider.ID())
-	}
-
-	chatModel, err := buildChatModel(ctx, provider)
-	if err != nil {
-		return fmt.Errorf("build chat model: %w", err)
-	}
-
-	chatModelAgent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
-		Name:          agent.Name(),
-		Instruction:   fmt.Sprintf("你是 %s，一个由枢络 AgentMesh 平台编排的智能助理，请根据用户请求和可用工具完成任务。", agent.Name()),
-		Model:         chatModel,
-		ToolsConfig:   r.buildToolsConfig(agent, runCtx),
-		MaxIterations: maxIterationsForTemplate(agent.LoopTemplate()),
-	})
-	if err != nil {
-		return fmt.Errorf("build chat model agent: %w", err)
+		return err
 	}
 
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{
@@ -149,14 +130,64 @@ func (r *EinoRuntime) Run(agent *domain.Agent, runCtx domain.RunContext, message
 	return nil
 }
 
-// buildToolsConfig 遍历 agent.Capabilities()，把 IsSubagent=false 的能力
-// 解析成内置 Tool（builtin_tools.go 里的静态注册表）。
-// Subagent-as-Tool 递归包装和第三方 MCP 能力接入属于 M2 范围，这里先跳过，
-// 避免因为个别未接入的能力导致整个 Agent 无法运行。
-func (r *EinoRuntime) buildToolsConfig(agent *domain.Agent, _ domain.RunContext) adk.ToolsConfig {
+// buildAgentNode 递归构建一个 Eino ChatModelAgent：先校验递归深度，再把
+// agent.Capabilities() 解析成 ToolsConfig（含更深一层的 Subagent-as-Tool 包装）。
+// depth 语义与 gRPC InvokeRequest.depth 一致（技术规格文档 §6.4）：网关对 Hub
+// 的首次调用 depth=0，每往下挂一层 Subagent-as-Tool，depth 传给子 Agent 时 +1，
+// 子 Agent 自身的 max_depth 一旦被超过就在这里直接拒绝，不会真的去跑模型。
+func (r *EinoRuntime) buildAgentNode(ctx context.Context, agent *domain.Agent, depth int32) (adk.Agent, error) {
+	if err := agent.ValidateInvokeDepth(depth); err != nil {
+		return nil, err
+	}
+	if agent.ModelProviderID() == "" {
+		return nil, fmt.Errorf("agent %s has no model provider configured", agent.ID())
+	}
+	provider, err := r.ModelProviders.FindByID(agent.ModelProviderID())
+	if err != nil {
+		return nil, fmt.Errorf("load model provider: %w", err)
+	}
+	if !provider.IsEnabled() {
+		return nil, fmt.Errorf("model provider %s is disabled", provider.ID())
+	}
+
+	chatModel, err := buildChatModel(ctx, provider)
+	if err != nil {
+		return nil, fmt.Errorf("build chat model: %w", err)
+	}
+
+	return adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+		Name:          agentToolName(agent),
+		Description:   fmt.Sprintf("由枢络 AgentMesh 平台编排的智能助理「%s」，可作为子 Agent 处理独立子任务。", agent.Name()),
+		Instruction:   fmt.Sprintf("你是 %s，一个由枢络 AgentMesh 平台编排的智能助理，请根据用户请求和可用工具完成任务。", agent.Name()),
+		Model:         chatModel,
+		ToolsConfig:   r.buildToolsConfig(ctx, agent, depth),
+		MaxIterations: maxIterationsForTemplate(agent.LoopTemplate()),
+	})
+}
+
+// agentToolName 把 Agent 转成 Eino 工具调用要求的合法标识符（LLM 侧的 function
+// name 一般只允许字母数字下划线短横线）。Agent.Name() 可以是任意中文，
+// 不能直接当工具名用，人类可读的名字放进 Description 里给模型看。
+func agentToolName(agent *domain.Agent) string {
+	return fmt.Sprintf("agent_%s", agent.ID())
+}
+
+// buildToolsConfig 遍历 agent.Capabilities()：IsSubagent=false 的能力解析成
+// 内置 Tool（builtin_tools.go 里的静态注册表）；IsSubagent=true 的能力
+// 递归包装成 Subagent-as-Tool（技术规格文档 §6.1）。
+// 第三方 MCP 能力接入属于 M2 的另一个任务，这里先跳过，避免因为个别未接入的
+// 能力导致整个 Agent 无法运行；单个 Subagent 装配失败（比如目标 Agent 已下线、
+// 递归深度超限）也只是跳过它，不影响其余能力正常挂载。
+func (r *EinoRuntime) buildToolsConfig(ctx context.Context, agent *domain.Agent, depth int32) adk.ToolsConfig {
 	cfg := adk.ToolsConfig{}
 	for _, cap := range agent.Capabilities() {
 		if cap.IsSubagent {
+			subTool, err := r.buildSubagentTool(ctx, cap, depth)
+			if err != nil {
+				log.Printf("skip subagent capability %s for agent %s: %v", cap.CapabilityID, agent.ID(), err)
+				continue
+			}
+			cfg.ToolsNodeConfig.Tools = append(cfg.ToolsNodeConfig.Tools, subTool)
 			continue
 		}
 		if t, ok := builtinTools[cap.CapabilityID]; ok {
@@ -164,6 +195,27 @@ func (r *EinoRuntime) buildToolsConfig(agent *domain.Agent, _ domain.RunContext)
 		}
 	}
 	return cfg
+}
+
+// buildSubagentTool 把一个 IsSubagent=true 的挂载能力包装成 Eino BaseTool：
+// CapabilityID 直接引用本服务内另一个已发布 Agent 的 ID（内部递归调用本服务，
+// 不经过 marketplace-service），Hub 的 LLM 在 tool_call 阶段像调用普通 Tool
+// 一样调用它。用 adk.NewAgentTool 默认行为（不加 WithFullChatHistoryAsInput），
+// 子 Agent 只收到精简后的任务描述，不会看到 Hub 完整的对话历史。
+func (r *EinoRuntime) buildSubagentTool(ctx context.Context, cap domain.MountedCapability, parentDepth int32) (tool.BaseTool, error) {
+	target, err := r.Agents.FindByID(cap.CapabilityID)
+	if err != nil {
+		return nil, fmt.Errorf("load subagent %s: %w", cap.CapabilityID, err)
+	}
+	if target.Status() != domain.AgentStatusPublished {
+		return nil, fmt.Errorf("subagent %s is not published", cap.CapabilityID)
+	}
+
+	subAgent, err := r.buildAgentNode(ctx, target, parentDepth+1)
+	if err != nil {
+		return nil, fmt.Errorf("build subagent %s: %w", cap.CapabilityID, err)
+	}
+	return adk.NewAgentTool(ctx, subAgent), nil
 }
 
 // buildHookCallbackHandler 用 Eino Callback 的 OnStart/OnEnd 挂载

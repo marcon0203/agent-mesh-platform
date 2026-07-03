@@ -53,7 +53,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init model provider repository (check MODEL_PROVIDER_ENC_KEY): %v", err)
 	}
-	runtime := infrastructure.NewEinoRuntime(modelProviderRepo)
+	runtime := infrastructure.NewEinoRuntime(modelProviderRepo, agentRepo)
 	usageReporter := infrastructure.NewAsyncUsageReporter(redisAddr())
 
 	invokeUseCase := application.NewInvokeUseCase(agentRepo, runtime, usageReporter)
@@ -83,6 +83,7 @@ func main() {
 func serveAdminHTTP(handler *interfaces.AdminHTTPHandler) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /agents", handler.CreateAgentHandler)
+	mux.HandleFunc("GET /agents", handler.ListAgents)
 	mux.HandleFunc("GET /agents/{id}", handler.GetAgent)
 	mux.HandleFunc("POST /agents/{id}/config", handler.ConfigureAgentHandler)
 	mux.HandleFunc("POST /model-providers", handler.CreateModelProvider)

@@ -23,6 +23,9 @@ type InvokeChunk struct {
 type AgentRepository interface {
 	FindByID(id string) (*Agent, error)
 	Save(agent *Agent) (*Agent, error)
+	// ListPublished 供 Subagent-as-Tool 挂载选择使用：只有已发布的 Agent
+	// 才能被其他 Agent 挂载为子 Agent（草稿态 Agent 随时可能被改动/删除）。
+	ListPublished() ([]*Agent, error)
 }
 
 // UsageReporter 是领域事件的一种简化表达：一次调用结束后需要上报用量，

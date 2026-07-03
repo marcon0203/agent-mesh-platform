@@ -6,6 +6,7 @@
 
 import type {
   AgentDetail,
+  AgentSummary,
   Capability,
   CapabilityType,
   HookConfig,
@@ -69,6 +70,8 @@ export const api = {
       body: JSON.stringify({ name, loop_template: loopTemplate }),
     }),
   getAgent: (agentId: string) => request<AgentDetail>(`/agents/${agentId}`),
+  // 已发布的 Agent 列表，供挂载 Subagent 时选择（见 AgentBuilderPage）。
+  listAgents: () => request<AgentSummary[]>(`/agents?status=published`),
   configureAgent: (agentId: string, input: ConfigureAgentInput) =>
     request<void>(`/agents/${agentId}/config`, {
       method: "POST",

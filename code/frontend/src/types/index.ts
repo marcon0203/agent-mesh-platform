@@ -40,6 +40,17 @@ export interface HookConfig {
   post_hooks: string[]
 }
 
+// AgentSummary 对应 orchestration-service GET /agents 的列表项，
+// 用于 Agent 构建器里挑选"挂载哪个已发布 Agent 作为 Subagent"
+// （区别于市场里 type=agent 的 Capability——那是能力目录展示，
+// Subagent-as-Tool 实际递归调用的是本服务自己的 Agent ID）。
+export interface AgentSummary {
+  id: string
+  name: string
+  loop_template: LoopTemplate
+  status: "draft" | "published" | "offline"
+}
+
 export interface AgentDetail {
   id: string
   name: string

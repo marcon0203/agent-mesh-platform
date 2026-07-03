@@ -26,16 +26,20 @@ export default function AgentBuilderPage() {
   const [agentId, setAgentId] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [mounted, setMounted] = useState<string[]>([])
+  const [mountedSubagents, setMountedSubagents] = useState<string[]>([])
   const [maxDepth, setMaxDepth] = useState(3)
   const [enabledHooks, setEnabledHooks] = useState<string[]>(["记忆加载", "权限校验", "消费上报"])
   const [modelProviderId, setModelProviderId] = useState<string>("")
 
   const toolsQuery = useQuery({ queryKey: ["capabilities", "tool"], queryFn: () => api.listCapabilities("tool") })
   const skillsQuery = useQuery({ queryKey: ["capabilities", "skill"], queryFn: () => api.listCapabilities("skill") })
-  const agentsQuery = useQuery({ queryKey: ["capabilities", "agent"], queryFn: () => api.listCapabilities("agent") })
+  const subagentsQuery = useQuery({ queryKey: ["agents", "published"], queryFn: api.listAgents })
   const providersQuery = useQuery({ queryKey: ["model-providers"], queryFn: api.listModelProviders })
 
-  const capabilities = [...(toolsQuery.data ?? []), ...(skillsQuery.data ?? []), ...(agentsQuery.data ?? [])]
+  const capabilities = [...(toolsQuery.data ?? []), ...(skillsQuery.data ?? [])]
+  // Subagent-as-Tool 递归调用的是本服务自己的 Agent，挂载自己会导致 depth 立刻
+  // 超限（technical spec §6.1），所以候选列表里先排除当前正在编辑的这个 Agent。
+  const subagentCandidates = (subagentsQuery.data ?? []).filter((a) => a.id !== agentId)
 
   const createAgentMutation = useMutation({
     mutationFn: () => api.createAgent(name),
@@ -45,10 +49,13 @@ export default function AgentBuilderPage() {
   const publishMutation = useMutation({
     mutationFn: () => {
       if (!agentId) throw new Error("请先创建 Agent")
-      const capabilityPayload: MountedCapability[] = mounted.map((id) => {
-        const cap = capabilities.find((c) => c.id === id)
-        return { capability_id: id, pinned_version: cap?.version ?? "", is_subagent: cap?.type === "agent" }
-      })
+      const capabilityPayload: MountedCapability[] = [
+        ...mounted.map((id) => {
+          const cap = capabilities.find((c) => c.id === id)
+          return { capability_id: id, pinned_version: cap?.version ?? "", is_subagent: false }
+        }),
+        ...mountedSubagents.map((id) => ({ capability_id: id, pinned_version: "", is_subagent: true })),
+      ]
       return api.configureAgent(agentId, {
         capabilities: capabilityPayload,
         max_depth: maxDepth,
@@ -114,7 +121,7 @@ export default function AgentBuilderPage() {
           <StepLabel num="01 / SELECT" title="挑选能力" />
           {capabilities.length === 0 ? (
             <Card className="mb-10">
-              <CardDescription>市场里还没有已上架的能力，先去能力市场页确认 marketplace-service 是否正常。</CardDescription>
+              <CardDescription>市场里还没有已上架的 Tool/Skill，先去能力市场页确认 marketplace-service 是否正常。</CardDescription>
             </Card>
           ) : (
             <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -132,8 +139,44 @@ export default function AgentBuilderPage() {
                         {active && <span className="text-xs font-medium text-accent">已挂载</span>}
                       </div>
                       <CardTitle>{cap.name}</CardTitle>
+                      <CardDescription>作为 Tool/Skill 挂载 · {cap.version || "未发布版本"}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+
+          <StepLabel num="01B / SUBAGENT" title="挂载子 Agent（可选）" />
+          <p className="-mt-2 mb-4 text-xs text-muted-foreground">
+            按 Subagent-as-Tool 机制递归调用平台上其他已发布的 Agent，只传入必要的任务描述，
+            不会透传当前 Agent 的完整对话历史；实际能不能被调用还要再过一次子 Agent 自己的
+            递归深度上限校验。
+          </p>
+          {subagentCandidates.length === 0 ? (
+            <Card className="mb-10">
+              <CardDescription>
+                平台上还没有其他已发布的 Agent 可以挂载——先发布至少一个 Agent，之后编辑其他 Agent 时就能在这里选它作为子 Agent 了。
+              </CardDescription>
+            </Card>
+          ) : (
+            <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2">
+              {subagentCandidates.map((a) => {
+                const active = mountedSubagents.includes(a.id)
+                return (
+                  <Card
+                    key={a.id}
+                    onClick={() => toggle(mountedSubagents, setMountedSubagents, a.id)}
+                    className={active ? "cursor-pointer border-primary/60" : "cursor-pointer"}
+                  >
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <Badge variant="agent">AGENT</Badge>
+                        {active && <span className="text-xs font-medium text-accent">已挂载</span>}
+                      </div>
+                      <CardTitle>{a.name}</CardTitle>
                       <CardDescription>
-                        {cap.type === "agent" ? "作为 Subagent 挂载" : "作为 Tool/Skill 挂载"} · {cap.version || "未发布版本"}
+                        作为 Subagent 挂载 · Agent ID：<span className="font-mono">{a.id}</span>
                       </CardDescription>
                     </CardHeader>
                   </Card>
@@ -225,7 +268,7 @@ export default function AgentBuilderPage() {
 
           <Button
             size="lg"
-            disabled={mounted.length === 0 || !modelProviderId || publishMutation.isPending}
+            disabled={(mounted.length === 0 && mountedSubagents.length === 0) || !modelProviderId || publishMutation.isPending}
             onClick={() => publishMutation.mutate()}
           >
             {publishMutation.isPending ? "发布中…" : "发布 Agent"}

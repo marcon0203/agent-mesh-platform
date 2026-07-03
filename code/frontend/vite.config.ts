@@ -26,15 +26,19 @@ export default defineConfig({
         target: "http://localhost:8082",
         rewrite: (path) => path.replace(/^\/api\/v1/, ""),
       },
-      "^/api/v1/agents/[^/]+/config$": {
+      // 精确匹配的三条规则要允许可选的查询串（比如 GET /agents?status=published），
+      // 不能简单写 [^/]+$ / agents$ —— vite 的 proxy context 是拿完整 req.url
+      // （含查询串）去测正则的，末尾锚定 $ 会导致带 query 的请求直接匹配失败、
+      // 落到最后的通用 /api 规则上，被错误转发到 gateway-service。
+      "^/api/v1/agents/[^/?]+/config(\\?.*)?$": {
         target: "http://localhost:8082",
         rewrite: (path) => path.replace(/^\/api\/v1/, ""),
       },
-      "^/api/v1/agents/[^/]+$": {
+      "^/api/v1/agents/[^/?]+(\\?.*)?$": {
         target: "http://localhost:8082",
         rewrite: (path) => path.replace(/^\/api\/v1/, ""),
       },
-      "^/api/v1/agents$": {
+      "^/api/v1/agents(\\?.*)?$": {
         target: "http://localhost:8082",
         rewrite: (path) => path.replace(/^\/api\/v1/, ""),
       },
