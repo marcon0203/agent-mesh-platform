@@ -60,8 +60,8 @@ export default function ConsoleLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
-  // 退出登录后不用手动跳转：登录态一清空，ProtectedRoute 自己就会把当前
-  // 受保护路由重定向到 /login（这也是大多数产品退出登录后的常见落点）。
+  // 退出登录后不用手动跳转：登录态一清空，ProtectedRoute 自己就会在当前
+  // 页面上叠一层模糊 + 登录弹窗（参考阿里云百炼），不需要导航去别的地方。
   const handleLogout = () => {
     setUserMenuOpen(false)
     logout()

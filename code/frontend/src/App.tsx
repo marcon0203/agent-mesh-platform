@@ -4,7 +4,6 @@ import ConsoleLayout from "@/layouts/ConsoleLayout"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import PortalHomePage from "@/pages/PortalHomePage"
 import MarketplacePage from "@/pages/MarketplacePage"
-import LoginPage from "@/pages/LoginPage"
 import AgentListPage from "@/pages/AgentListPage"
 import AgentEditorPage from "@/pages/AgentEditorPage"
 import ModelProvidersPage from "@/pages/ModelProvidersPage"
@@ -20,9 +19,8 @@ export default function App() {
         <Route path="/marketplace" element={<MarketplacePage />} />
       </Route>
 
-      <Route path="/login" element={<LoginPage />} />
-
-      {/* Console：登录后的管理后台 */}
+      {/* Console：登录后的管理后台。未登录时 ProtectedRoute 会照常渲染这些页面，
+          只是叠一层模糊 + 登录弹窗（参考阿里云百炼），不整页跳去单独的登录页。 */}
       <Route element={<ProtectedRoute />}>
         <Route element={<ConsoleLayout />}>
           <Route path="/console" element={<DashboardPage />} />

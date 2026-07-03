@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
+import { LayoutDashboard, Bot, Cpu, MessagesSquare, LayoutGrid, BarChart3, ArrowUpRight, type LucideIcon } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConstellationGraphic } from "@/components/Logo"
 import { api } from "@/api/client"
-import { useAuth } from "@/lib/auth"
 
 const STATS = [
   { label: "已上架能力（Tools / Skills）", value: "2,480", suffix: "+" },
@@ -16,6 +16,26 @@ const STATS = [
 
 const TYPE_LABEL: Record<string, string> = { tool: "TOOL", skill: "SKILL", agent: "AGENT" }
 
+// 常用功能：参考阿里云百炼首页的"常用功能"卡片区——把控制台里的核心功能
+// 直接摆在门户首页当快捷入口，点进去是真实的 Console 路由；没登录的话
+// ProtectedRoute 会照常渲染那个页面（模糊）+ 弹登录框，登录后原地露出内容，
+// 不需要经过单独的 /login 页面。
+interface QuickFunction {
+  icon: LucideIcon
+  title: string
+  desc: string
+  to: string
+}
+
+const QUICK_FUNCTIONS: QuickFunction[] = [
+  { icon: LayoutDashboard, title: "控制台总览", desc: "查看账号下所有 Agent 与能力的用量、配置入口。", to: "/console" },
+  { icon: Bot, title: "Agent 管理", desc: "装配能力、配置 Hook、选择模型供应商并发布。", to: "/console/builder" },
+  { icon: Cpu, title: "模型供应商", desc: "接入自己的模型服务商 API Key，供 Agent 选用。", to: "/console/model-providers" },
+  { icon: MessagesSquare, title: "Workbench", desc: "免集成直接对话调试，查看实时事件与 trace。", to: "/console/workbench" },
+  { icon: LayoutGrid, title: "能力市场", desc: "浏览 Tool / Skill / Agent，第三方能力统一走 MCP 协议接入。", to: "/marketplace" },
+  { icon: BarChart3, title: "用量与账单", desc: "按 Agent 维度核算调用量，覆盖 API 与 Workbench 两个入口。", to: "/console" },
+]
+
 const PROCESS_STEPS = [
   { num: "01 / SELECT", title: "挑选能力", desc: "从市场检索或让平台按任务描述智能推荐一组 Tool / Skill / Agent 组合。" },
   { num: "02 / CONFIGURE", title: "配置策略", desc: "设定记忆策略、权限范围与递归深度上限，中间件 Hook 均可按需启用。" },
@@ -23,8 +43,9 @@ const PROCESS_STEPS = [
 ]
 
 export default function PortalHomePage() {
-  const { isAuthenticated } = useAuth()
-  const consoleHref = isAuthenticated ? "/console" : "/login"
+  // 未登录也直接指向 /console：ProtectedRoute 会照常渲染该页面并叠登录弹窗，
+  // 不再分流到单独的 /login 页面（参考阿里云百炼的交互）。
+  const consoleHref = "/console"
 
   const previewQuery = useQuery({ queryKey: ["capabilities", "tool"], queryFn: () => api.listCapabilities("tool") })
   const preview = (previewQuery.data ?? []).slice(0, 6)
@@ -71,6 +92,30 @@ export default function PortalHomePage() {
           <div className="absolute inset-x-0 bottom-6 text-center font-mono text-[11px] tracking-wide text-muted-foreground">
             TOOLS · SKILLS · AGENTS 实时编排
           </div>
+        </div>
+      </section>
+
+      {/* 常用功能：直接从门户首页跳进控制台各功能，未登录会看到模糊预览 + 登录弹窗 */}
+      <section className="mx-auto max-w-6xl px-8 pb-16">
+        <h2 className="mb-5 font-display text-lg font-semibold">常用功能</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {QUICK_FUNCTIONS.map((fn) => {
+            const Icon = fn.icon
+            return (
+              <Link key={fn.title} to={fn.to}>
+                <Card className="h-full cursor-pointer p-6">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-[#5aa6ff]">
+                      <Icon className="size-4.5" />
+                    </span>
+                    <ArrowUpRight className="size-4 text-muted-foreground/50" />
+                  </div>
+                  <div className="mb-1 font-display text-base font-semibold">{fn.title}</div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{fn.desc}</p>
+                </Card>
+              </Link>
+            )
+          })}
         </div>
       </section>
 
