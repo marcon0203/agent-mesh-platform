@@ -7,6 +7,7 @@ import MarketplacePage from "@/pages/MarketplacePage"
 import AgentListPage from "@/pages/AgentListPage"
 import AgentEditorPage from "@/pages/AgentEditorPage"
 import ModelProvidersPage from "@/pages/ModelProvidersPage"
+import AppPlazaPage from "@/pages/AppPlazaPage"
 import WorkbenchPage from "@/pages/WorkbenchPage"
 import DashboardPage from "@/pages/DashboardPage"
 
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/console/builder" element={<AgentListPage />} />
           <Route path="/console/builder/:id" element={<AgentEditorPage />} />
           <Route path="/console/model-providers" element={<ModelProvidersPage />} />
+          <Route path="/console/app-plaza" element={<AppPlazaPage />} />
           <Route path="/console/workbench" element={<WorkbenchPage />} />
         </Route>
       </Route>

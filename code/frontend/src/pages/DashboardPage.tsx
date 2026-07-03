@@ -12,13 +12,13 @@ const STATS = [
 const QUICK_LINKS = [
   { to: "/console/builder", title: "Agent 管理", desc: "装配能力、配置 Hook、选择模型供应商并发布。" },
   { to: "/console/model-providers", title: "模型供应商", desc: "接入自己的模型服务商 API Key，供 Agent 选用。" },
-  { to: "/console/workbench", title: "Workbench", desc: "免集成直接对话调试，查看实时事件与 trace。" },
+  { to: "/console/app-plaza", title: "应用广场", desc: "挑一个已发布的 Agent，直接进 Workbench 开始对话。" },
 ]
 
 export default function DashboardPage() {
   return (
     <div>
-      <PageHeader eyebrow="DASHBOARD" title="控制台" description="账号下所有 Agent 与能力的用量、配置入口。" />
+      <PageHeader eyebrow="DASHBOARD" title="驾驶舱" description="账号下所有 Agent 与能力的用量、配置入口。" />
 
       <div className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
         {STATS.map((s) => (

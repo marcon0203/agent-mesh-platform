@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -21,7 +22,9 @@ function WindowDots() {
 }
 
 export default function WorkbenchPage() {
-  const [agentId, setAgentId] = useState("")
+  // 从应用广场点某个 Agent 卡片进来时，带上 ?agentId= 直接预填，不用再手动输入。
+  const [searchParams] = useSearchParams()
+  const [agentId, setAgentId] = useState(() => searchParams.get("agentId") ?? "")
   const [apiKey, setApiKey] = useState("")
   const [sessionId] = useState(randomSessionId)
   const [messages, setMessages] = useState<ChatMessage[]>([])

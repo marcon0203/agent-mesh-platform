@@ -28,10 +28,10 @@ interface QuickFunction {
 }
 
 const QUICK_FUNCTIONS: QuickFunction[] = [
-  { icon: LayoutDashboard, title: "控制台总览", desc: "查看账号下所有 Agent 与能力的用量、配置入口。", to: "/console" },
+  { icon: LayoutDashboard, title: "驾驶舱", desc: "查看账号下所有 Agent 与能力的用量、配置入口。", to: "/console" },
   { icon: Bot, title: "Agent 管理", desc: "装配能力、配置 Hook、选择模型供应商并发布。", to: "/console/builder" },
   { icon: Cpu, title: "模型供应商", desc: "接入自己的模型服务商 API Key，供 Agent 选用。", to: "/console/model-providers" },
-  { icon: MessagesSquare, title: "Workbench", desc: "免集成直接对话调试，查看实时事件与 trace。", to: "/console/workbench" },
+  { icon: MessagesSquare, title: "应用广场", desc: "挑一个已发布的 Agent，直接进 Workbench 开始对话。", to: "/console/app-plaza" },
   { icon: LayoutGrid, title: "能力市场", desc: "浏览 Tool / Skill / Agent，第三方能力统一走 MCP 协议接入。", to: "/marketplace" },
   { icon: BarChart3, title: "用量与账单", desc: "按 Agent 维度核算调用量，覆盖 API 与 Workbench 两个入口。", to: "/console" },
 ]

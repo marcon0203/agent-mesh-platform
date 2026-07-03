@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Bot,
   Cpu,
+  Grid3x3,
   MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
@@ -24,22 +25,33 @@ interface NavGroup {
   key: string
   label: string
   items: NavItem[]
+  // 参考百炼：像"驾驶舱"这种单页模块不需要左侧子菜单，顶部 tab 点了直接
+  // 进对应页面、内容占满整个宽度。
+  hideSidebar?: boolean
 }
 
 const NAV_GROUPS: NavGroup[] = [
-  { key: "overview", label: "总览", items: [{ to: "/console", label: "控制台", icon: LayoutDashboard, end: true }] },
   {
-    key: "orchestration",
-    label: "编排与配置",
+    key: "overview",
+    label: "驾驶舱",
+    items: [{ to: "/console", label: "驾驶舱", icon: LayoutDashboard, end: true }],
+    hideSidebar: true,
+  },
+  {
+    key: "workspace",
+    label: "工作区",
     items: [
       { to: "/console/builder", label: "Agent 管理", icon: Bot },
       { to: "/console/model-providers", label: "模型供应商", icon: Cpu },
     ],
   },
   {
-    key: "debug",
-    label: "调试与验证",
-    items: [{ to: "/console/workbench", label: "Workbench", icon: MessagesSquare }],
+    key: "app-plaza",
+    label: "应用广场",
+    items: [
+      { to: "/console/app-plaza", label: "应用广场", icon: Grid3x3, end: true },
+      { to: "/console/workbench", label: "Workbench", icon: MessagesSquare },
+    ],
   },
 ]
 
@@ -133,35 +145,37 @@ export default function ConsoleLayout() {
       </header>
 
       <div className="flex">
-        <aside
-          className={cn(
-            "sticky top-14 flex h-[calc(100vh-3.5rem)] shrink-0 flex-col overflow-y-auto border-r border-glass-border bg-surface/60 px-3 py-4 backdrop-blur-xl transition-[width] duration-200",
-            collapsed ? "w-16" : "w-56"
-          )}
-        >
-          <ul className="space-y-0.5">
-            {group.items.map((item) => {
-              const active = isActive(item, location.pathname)
-              const Icon = item.icon
-              return (
-                <li key={item.to}>
-                  <Link
-                    to={item.to}
-                    title={collapsed ? item.label : undefined}
-                    className={cn(
-                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground",
-                      collapsed && "justify-center",
-                      active && "bg-primary/15 text-[#5aa6ff]"
-                    )}
-                  >
-                    <Icon className="size-4 shrink-0" />
-                    {!collapsed && <span>{item.label}</span>}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </aside>
+        {!group.hideSidebar && (
+          <aside
+            className={cn(
+              "sticky top-14 flex h-[calc(100vh-3.5rem)] shrink-0 flex-col overflow-y-auto border-r border-glass-border bg-surface/60 px-3 py-4 backdrop-blur-xl transition-[width] duration-200",
+              collapsed ? "w-16" : "w-56"
+            )}
+          >
+            <ul className="space-y-0.5">
+              {group.items.map((item) => {
+                const active = isActive(item, location.pathname)
+                const Icon = item.icon
+                return (
+                  <li key={item.to}>
+                    <Link
+                      to={item.to}
+                      title={collapsed ? item.label : undefined}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground",
+                        collapsed && "justify-center",
+                        active && "bg-primary/15 text-[#5aa6ff]"
+                      )}
+                    >
+                      <Icon className="size-4 shrink-0" />
+                      {!collapsed && <span>{item.label}</span>}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </aside>
+        )}
 
         <main className="min-w-0 flex-1 px-8 py-8">
           <div className="mx-auto max-w-6xl">
