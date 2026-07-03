@@ -30,8 +30,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const body = await res.text().catch(() => "")
     throw new Error(`API ${path} failed: ${res.status}${body ? ` - ${body}` : ""}`)
   }
-  if (res.status === 204) return undefined as T
-  return res.json()
+  // 有的接口（比如 configureAgent）成功时返回 200 但 body 是空的，不只是
+  // 204 会没有 body——统一按"空 body 就当 void 处理"，不强行 res.json()。
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }
 
 export interface CreateModelProviderInput {
@@ -70,8 +72,10 @@ export const api = {
       body: JSON.stringify({ name, loop_template: loopTemplate }),
     }),
   getAgent: (agentId: string) => request<AgentDetail>(`/agents/${agentId}`),
-  // 已发布的 Agent 列表，供挂载 Subagent 时选择（见 AgentBuilderPage）。
-  listAgents: () => request<AgentSummary[]>(`/agents?status=published`),
+  // 账号下所有 Agent（含草稿），供 Agent 列表页展示。
+  listAllAgents: () => request<AgentSummary[]>(`/agents`),
+  // 只列出已发布的 Agent，供挂载 Subagent 时选择（见 AgentEditorPage）。
+  listPublishedAgents: () => request<AgentSummary[]>(`/agents?status=published`),
   configureAgent: (agentId: string, input: ConfigureAgentInput) =>
     request<void>(`/agents/${agentId}/config`, {
       method: "POST",

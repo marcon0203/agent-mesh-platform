@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/comp
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { PageHeader } from "@/components/PageHeader"
 import { api } from "@/api/client"
 import type { ProviderType } from "@/types"
@@ -13,15 +14,23 @@ const PROVIDER_TYPE_LABEL: Record<ProviderType, string> = {
   anthropic: "Anthropic 原生",
 }
 
-export default function ModelProvidersPage() {
+function CreateProviderDialog() {
   const queryClient = useQueryClient()
-  const providersQuery = useQuery({ queryKey: ["model-providers"], queryFn: api.listModelProviders })
+  const [open, setOpen] = useState(false)
 
   const [name, setName] = useState("")
   const [providerType, setProviderType] = useState<ProviderType>("openai_compatible")
   const [baseURL, setBaseURL] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [modelName, setModelName] = useState("")
+
+  const reset = () => {
+    setName("")
+    setBaseURL("")
+    setApiKey("")
+    setModelName("")
+    setProviderType("openai_compatible")
+  }
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -34,71 +43,29 @@ export default function ModelProvidersPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["model-providers"] })
-      setName("")
-      setBaseURL("")
-      setApiKey("")
-      setModelName("")
+      reset()
+      setOpen(false)
     },
   })
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="MODEL PROVIDERS"
-        title="模型供应商"
-        description="自己接入模型服务商的 API Key，构建 Agent 时选择用哪个供应商来跑对话。Key 只在创建时提交一次，落库前会用服务端密钥加密，列表和详情都不会再回显明文。"
-      />
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) reset()
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button>新建供应商</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>新建模型供应商</DialogTitle>
+          <DialogDescription>Key 只在创建时提交一次，落库前会用服务端密钥加密，列表和详情都不会再回显明文。</DialogDescription>
+        </DialogHeader>
 
-      <div className="mb-10 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
         <div>
-          <h2 className="mb-4 font-display text-lg font-semibold">已配置的供应商</h2>
-          {providersQuery.isLoading && <p className="text-sm text-muted-foreground">加载中…</p>}
-          {providersQuery.error && (
-            <Card className="border-destructive/40">
-              <CardTitle className="text-destructive">加载失败</CardTitle>
-              <CardDescription>{(providersQuery.error as Error).message}</CardDescription>
-            </Card>
-          )}
-          {!providersQuery.isLoading && !providersQuery.error && (providersQuery.data?.length ?? 0) === 0 && (
-            <Card>
-              <CardTitle>还没有配置任何模型供应商</CardTitle>
-              <CardDescription>先在右侧表单创建一个，构建 Agent 时才能选择使用哪个模型。</CardDescription>
-            </Card>
-          )}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {providersQuery.data?.map((p) => (
-              <Card key={p.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <Badge variant="neutral">{PROVIDER_TYPE_LABEL[p.provider_type]}</Badge>
-                    <span className={p.status === "enabled" ? "text-xs text-accent" : "text-xs text-muted-foreground"}>
-                      {p.status === "enabled" ? "启用中" : "已禁用"}
-                    </span>
-                  </div>
-                  <CardTitle>{p.name}</CardTitle>
-                  <CardDescription>
-                    模型：<span className="font-mono">{p.model_name}</span>
-                    {p.base_url && (
-                      <>
-                        <br />
-                        Base URL：<span className="font-mono">{p.base_url}</span>
-                      </>
-                    )}
-                  </CardDescription>
-                </CardHeader>
-                <CardFooter>
-                  <span>
-                    ID：<span className="font-mono">{p.id}</span>
-                  </span>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <div className="glass-panel h-fit p-6">
-          <p className="mb-4 text-sm font-medium">新建模型供应商</p>
-
           <label className="mb-1 block text-xs text-muted-foreground">名称</label>
           <Input
             value={name}
@@ -164,9 +131,7 @@ export default function ModelProvidersPage() {
             className="mb-4"
           />
 
-          {createMutation.error && (
-            <p className="mb-3 text-xs text-destructive">{(createMutation.error as Error).message}</p>
-          )}
+          {createMutation.error && <p className="mb-3 text-xs text-destructive">{(createMutation.error as Error).message}</p>}
 
           <Button
             className="w-full"
@@ -176,6 +141,68 @@ export default function ModelProvidersPage() {
             {createMutation.isPending ? "创建中…" : "创建供应商"}
           </Button>
         </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default function ModelProvidersPage() {
+  const providersQuery = useQuery({ queryKey: ["model-providers"], queryFn: api.listModelProviders })
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="MODEL PROVIDERS"
+        title="模型供应商"
+        description="自己接入模型服务商的 API Key，构建 Agent 时选择用哪个供应商来跑对话。"
+      />
+
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="font-display text-lg font-semibold">已配置的供应商</h2>
+        <CreateProviderDialog />
+      </div>
+
+      {providersQuery.isLoading && <p className="text-sm text-muted-foreground">加载中…</p>}
+      {providersQuery.error && (
+        <Card className="border-destructive/40">
+          <CardTitle className="text-destructive">加载失败</CardTitle>
+          <CardDescription>{(providersQuery.error as Error).message}</CardDescription>
+        </Card>
+      )}
+      {!providersQuery.isLoading && !providersQuery.error && (providersQuery.data?.length ?? 0) === 0 && (
+        <Card>
+          <CardTitle>还没有配置任何模型供应商</CardTitle>
+          <CardDescription>点右上角"新建供应商"创建一个，构建 Agent 时才能选择使用哪个模型。</CardDescription>
+        </Card>
+      )}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {providersQuery.data?.map((p) => (
+          <Card key={p.id}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <Badge variant="neutral">{PROVIDER_TYPE_LABEL[p.provider_type]}</Badge>
+                <span className={p.status === "enabled" ? "text-xs text-accent" : "text-xs text-muted-foreground"}>
+                  {p.status === "enabled" ? "启用中" : "已禁用"}
+                </span>
+              </div>
+              <CardTitle>{p.name}</CardTitle>
+              <CardDescription>
+                模型：<span className="font-mono">{p.model_name}</span>
+                {p.base_url && (
+                  <>
+                    <br />
+                    Base URL：<span className="font-mono">{p.base_url}</span>
+                  </>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardFooter>
+              <span>
+                ID：<span className="font-mono">{p.id}</span>
+              </span>
+            </CardFooter>
+          </Card>
+        ))}
       </div>
     </div>
   )

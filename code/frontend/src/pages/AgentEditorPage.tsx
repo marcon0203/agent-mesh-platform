@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { useNavigate, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -20,10 +21,17 @@ function StepLabel({ num, title }: { num: string; title: string }) {
 const PRE_HOOKS = ["记忆加载", "权限校验", "提示词构建"]
 const POST_HOOKS = ["消费上报", "沙箱清理", "状态回传"]
 
-export default function AgentBuilderPage() {
+// /console/builder/new 走"填名称 -> 创建草稿"这一步；/console/builder/:id
+// 直接加载已有 Agent（草稿或已发布都行）进来继续编辑——两者共用同一个组件，
+// 只是 :id === "new" 时还没有 agentId，要先经过创建这一步。
+export default function AgentEditorPage() {
+  const params = useParams<{ id: string }>()
+  const routeId = params.id ?? "new"
+  const isNew = routeId === "new"
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [agentId, setAgentId] = useState<string | null>(null)
+  const [agentId, setAgentId] = useState<string | null>(isNew ? null : routeId)
   const [name, setName] = useState("")
   const [mounted, setMounted] = useState<string[]>([])
   const [mountedSubagents, setMountedSubagents] = useState<string[]>([])
@@ -31,9 +39,33 @@ export default function AgentBuilderPage() {
   const [enabledHooks, setEnabledHooks] = useState<string[]>(["记忆加载", "权限校验", "消费上报"])
   const [modelProviderId, setModelProviderId] = useState<string>("")
 
+  const agentDetailQuery = useQuery({
+    queryKey: ["agent", routeId],
+    queryFn: () => api.getAgent(routeId),
+    enabled: !isNew,
+    staleTime: Infinity,
+  })
+
+  // 只在详情第一次加载回来时把它灌进本地可编辑状态，避免后台悄悄 refetch 把
+  // 用户正在编辑但还没保存的改动覆盖掉。
+  const hydrated = useRef(false)
+  useEffect(() => {
+    if (isNew || hydrated.current || !agentDetailQuery.data) return
+    const detail = agentDetailQuery.data
+    hydrated.current = true
+    setAgentId(detail.id)
+    setName(detail.name)
+    const capabilities = detail.capabilities ?? []
+    setMounted(capabilities.filter((c) => !c.is_subagent).map((c) => c.capability_id))
+    setMountedSubagents(capabilities.filter((c) => c.is_subagent).map((c) => c.capability_id))
+    setMaxDepth(detail.max_depth)
+    setEnabledHooks([...(detail.hooks.pre_hooks ?? []), ...(detail.hooks.post_hooks ?? [])])
+    setModelProviderId(detail.model_provider_id)
+  }, [isNew, agentDetailQuery.data])
+
   const toolsQuery = useQuery({ queryKey: ["capabilities", "tool"], queryFn: () => api.listCapabilities("tool") })
   const skillsQuery = useQuery({ queryKey: ["capabilities", "skill"], queryFn: () => api.listCapabilities("skill") })
-  const subagentsQuery = useQuery({ queryKey: ["agents", "published"], queryFn: api.listAgents })
+  const subagentsQuery = useQuery({ queryKey: ["agents", "published"], queryFn: api.listPublishedAgents })
   const providersQuery = useQuery({ queryKey: ["model-providers"], queryFn: api.listModelProviders })
 
   const capabilities = [...(toolsQuery.data ?? []), ...(skillsQuery.data ?? [])]
@@ -43,7 +75,10 @@ export default function AgentBuilderPage() {
 
   const createAgentMutation = useMutation({
     mutationFn: () => api.createAgent(name),
-    onSuccess: (created) => setAgentId(created.id),
+    onSuccess: (created) => {
+      setAgentId(created.id)
+      navigate(`/console/builder/${created.id}`, { replace: true })
+    },
   })
 
   const publishMutation = useMutation({
@@ -67,17 +102,41 @@ export default function AgentBuilderPage() {
         publish: true,
       })
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agent", agentId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent", agentId] })
+      queryClient.invalidateQueries({ queryKey: ["agents"] })
+    },
   })
 
   const toggle = (list: string[], setList: (v: string[]) => void, id: string) =>
     setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
 
+  if (!isNew && agentDetailQuery.isLoading) {
+    return (
+      <div>
+        <PageHeader eyebrow="AGENT BUILDER" title="构建 Agent" />
+        <p className="text-sm text-muted-foreground">加载中…</p>
+      </div>
+    )
+  }
+
+  if (!isNew && agentDetailQuery.error) {
+    return (
+      <div>
+        <PageHeader eyebrow="AGENT BUILDER" title="构建 Agent" />
+        <Card className="border-destructive/40">
+          <CardTitle className="text-destructive">加载失败</CardTitle>
+          <CardDescription>{(agentDetailQuery.error as Error).message}</CardDescription>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div>
       <PageHeader
         eyebrow="AGENT BUILDER"
-        title="构建 Agent"
+        title={isNew ? "新建 Agent" : `编辑 Agent`}
         description="勾选能力、配置策略即可，执行顺序交给 Agentic Loop 自主决定 —— 不需要手工画流程图。"
       />
 

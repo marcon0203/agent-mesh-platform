@@ -112,6 +112,26 @@ func (r *AgentMySQLRepository) ListPublished() ([]*domain.Agent, error) {
 	return agents, rows.Err()
 }
 
+// ListAll 返回不论状态的全部 Agent，供前端 Agent 列表页使用——草稿态的也要能
+// 看到，不然创建到一半没发布的 Agent 就再也找不回来了。
+func (r *AgentMySQLRepository) ListAll() ([]*domain.Agent, error) {
+	rows, err := r.db.Query(`SELECT ` + agentSelectCols + ` FROM agent ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []*domain.Agent
+	for rows.Next() {
+		agent, err := r.scanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		agents = append(agents, agent)
+	}
+	return agents, rows.Err()
+}
+
 // Save 插入或更新一条记录；新建 Agent（ID 为空）时由 Postgres 自增列生成 ID，
 // 通过返回值把生成的 ID 回填到一个新的聚合根实例上（聚合根本身不暴露 ID setter，
 // 与 ModelProviderRepository.Save 的模式保持一致）。

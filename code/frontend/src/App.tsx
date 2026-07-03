@@ -5,7 +5,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute"
 import PortalHomePage from "@/pages/PortalHomePage"
 import MarketplacePage from "@/pages/MarketplacePage"
 import LoginPage from "@/pages/LoginPage"
-import AgentBuilderPage from "@/pages/AgentBuilderPage"
+import AgentListPage from "@/pages/AgentListPage"
+import AgentEditorPage from "@/pages/AgentEditorPage"
 import ModelProvidersPage from "@/pages/ModelProvidersPage"
 import WorkbenchPage from "@/pages/WorkbenchPage"
 import DashboardPage from "@/pages/DashboardPage"
@@ -25,7 +26,8 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<ConsoleLayout />}>
           <Route path="/console" element={<DashboardPage />} />
-          <Route path="/console/builder" element={<AgentBuilderPage />} />
+          <Route path="/console/builder" element={<AgentListPage />} />
+          <Route path="/console/builder/:id" element={<AgentEditorPage />} />
           <Route path="/console/model-providers" element={<ModelProvidersPage />} />
           <Route path="/console/workbench" element={<WorkbenchPage />} />
         </Route>

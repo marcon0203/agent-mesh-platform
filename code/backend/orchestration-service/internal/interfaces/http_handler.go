@@ -49,11 +49,19 @@ func (h *AdminHTTPHandler) CreateAgentHandler(w http.ResponseWriter, r *http.Req
 	_ = json.NewEncoder(w).Encode(agentResponse{ID: agent.ID(), Name: agent.Name(), LoopTemplate: agent.LoopTemplate(), Status: string(agent.Status())})
 }
 
-// ListAgents 对应 GET /agents?status=published，目前只支持列出已发布的 Agent
-// （status 参数暂时是唯一取值，预留将来扩展其他过滤条件），供前端 Agent 构建器
-// 挑选"挂载哪个已发布 Agent 作为 Subagent"时使用。
+// ListAgents 对应 GET /agents，不带 status 参数时返回所有状态的 Agent
+// （供前端 Agent 列表页展示，含草稿态），status=published 时只返回已发布的
+// （供 Agent 构建器挑选"挂载哪个已发布 Agent 作为 Subagent"时使用）。
 func (h *AdminHTTPHandler) ListAgents(w http.ResponseWriter, r *http.Request) {
-	agents, err := h.ConfigureAgent.Agents.ListPublished()
+	var (
+		agents []*domain.Agent
+		err    error
+	)
+	if r.URL.Query().Get("status") == "published" {
+		agents, err = h.ConfigureAgent.Agents.ListPublished()
+	} else {
+		agents, err = h.ConfigureAgent.Agents.ListAll()
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

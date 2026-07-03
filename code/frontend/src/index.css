@@ -196,3 +196,48 @@ body::after {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(120, 170, 255, 0.45);
 }
+
+/* Dialog（components/ui/dialog.tsx）弹窗淡入/弹出动画，对齐整站毛玻璃视觉。 */
+.dialog-overlay[data-state="open"] {
+  animation: dialog-fade-in 0.15s ease-out;
+}
+.dialog-overlay[data-state="closed"] {
+  animation: dialog-fade-out 0.15s ease-in;
+}
+.dialog-content {
+  transform: translate(-50%, -50%);
+}
+.dialog-content[data-state="open"] {
+  animation: dialog-pop-in 0.15s ease-out;
+}
+.dialog-content[data-state="closed"] {
+  animation: dialog-pop-out 0.1s ease-in;
+}
+@keyframes dialog-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dialog-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes dialog-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+}
+@keyframes dialog-pop-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dialog-overlay,
+  .dialog-content {
+    animation: none !important;
+  }
+}

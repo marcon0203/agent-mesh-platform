@@ -26,6 +26,9 @@ type AgentRepository interface {
 	// ListPublished 供 Subagent-as-Tool 挂载选择使用：只有已发布的 Agent
 	// 才能被其他 Agent 挂载为子 Agent（草稿态 Agent 随时可能被改动/删除）。
 	ListPublished() ([]*Agent, error)
+	// ListAll 供前端 Agent 列表页使用：不管草稿/已发布/已下线都要能看到，
+	// 方便回来继续编辑之前建到一半的 Agent。
+	ListAll() ([]*Agent, error)
 }
 
 // UsageReporter 是领域事件的一种简化表达：一次调用结束后需要上报用量，
